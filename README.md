@@ -131,6 +131,14 @@ python3 tools/evaluate.py push_recovery results/push-recovery/candidate.csv
 
 评估器会输出 JSON 指标、验收项和候选策略相对基线的成功率差值；未达到门槛时以非零状态退出。它评估仿真日志，不会部署策略到机器人。
 
+## 可上真机的训练（deploy contract）
+
+- [训练契约说明](docs/tasks/deploy-contract.md)：61 维观测 / 14 维动作 / 50 Hz / 拟合舵机 / 指令块映射，全部转录自官方交付包。
+- `tools/train_deploy.py --task duck_lift`：叼起林里小鸭（走近、低头、闭嘴、抬起保持）。
+- `tools/train_deploy.py --task toss_catch`：0.9–1.6 m 外抛球/抛方块，鸭子往前走迎击，触地前咬住并保持。
+- `tools/export_deploy_policy.py`：导出与 robotd 策略槽同构的 ONNX（obs[1,61]→actions[1,14]）和部署清单。
+- 训练依赖 torch 与 onnx（`.venv/bin/python -m pip install torch onnx`）；官方 identified 模型在 `vendor/official-handoff-20261113/`（git 忽略）。
+
 ## 安全边界
 
 ONNX 文件只有在官方部署流程确认 observation/action 形状、关节映射、归一化和控制频率一致后才可上机。首次真机测试使用软垫、低动态动作、有人可立即停止；未经仿真评估的高动态策略不上机。
