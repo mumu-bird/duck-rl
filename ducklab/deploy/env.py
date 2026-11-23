@@ -30,6 +30,7 @@ from . import scene as S
 from .servo import CommandConditioner
 
 GRAVITY = np.array([0.0, 0.0, -9.81])
+GAMMA = 0.99
 
 
 def _quat_to_mat(q):
@@ -100,7 +101,7 @@ class BeakController:
         if self.task == "duck_lift":
             horiz = ctx["tip_to_obj_horiz"]
             above = ctx["tip_above_obj"]
-            if horiz < 0.055 and above > 0.012 and ctx["descending_or_stable"]:
+            if horiz < 0.09 and 0.004 < above < 0.035 and ctx["descending_or_stable"]:
                 self.state = "closed"
                 self.hold_time = 0.0
                 return self.CLOSED
@@ -121,9 +122,11 @@ class DeployEnv:
     }
 
     def __init__(self, task="duck_lift", seed=None, object_kind=None, record=False,
-                 shared=None):
+                 shared=None, curriculum=None):
         assert task in self.TASKS
         self.task = task
+        self.curriculum = curriculum
+        self._curriculum_progress = 0.0
         cfg = self.TASKS[task]
         self.object_kind = object_kind or cfg["object"]
         self.seconds = cfg["seconds"]
@@ -153,6 +156,7 @@ class DeployEnv:
         self._caught = False
         self._ground_touch_after_toss = False
         self._episode_seed = seed
+        self._phi = 0.0
 
     # ------------------------------------------------------------- helpers
 
@@ -181,6 +185,19 @@ class DeployEnv:
             q = np.append(q, d.qpos[self.L["mouth_qpos"]])
             dq = np.append(dq, d.qvel[self.L["mouth_dof"]])
         return q, dq
+
+    def task_ctx(self):
+        """Live task geometry for expert selection during warm start."""
+        tip = self._tip_pose()
+        obj_pos = self._object_pose()[0]
+        return dict(
+            horiz=float(np.hypot(obj_pos[0] - tip[0], obj_pos[1] - tip[1])),
+            tip_dist=float(np.linalg.norm(obj_pos - tip)),
+            above=float(tip[2] - obj_pos[2]),
+        )
+
+    def set_curriculum_progress(self, progress):
+        self._curriculum_progress = float(np.clip(progress, 0.0, 1.0))
 
     def _tip_pose(self):
         # 官方模型的 mouth_tip 站点（喙尖）；模型重建时由 layout 提供
@@ -217,7 +234,7 @@ class DeployEnv:
     def _twist_command(self, obj_pos, obj_vel):
         if self.task == "duck_lift":
             # stand off point: 0.24 m in front of the object along +x
-            goal = np.array([obj_pos[0] - 0.24, obj_pos[1], 0.0])
+            goal = np.array([obj_pos[0] - 0.12, obj_pos[1], 0.0])
         else:
             # pursue the predicted intercept point ahead of the ball
             goal = obj_pos + obj_vel * 0.35
@@ -252,8 +269,13 @@ class DeployEnv:
 
         # object placement / toss
         if self.task == "duck_lift":
-            x = self.rng.uniform(0.30, 0.55)
-            y = self.rng.uniform(-0.10, 0.10)
+            if self.curriculum is not None:
+                far, near = self.curriculum
+                span = far + (near - far) * self._curriculum_progress
+                x = self.rng.uniform(max(0.10, span - 0.07), span)
+            else:
+                x = self.rng.uniform(0.15, 0.26)
+            y = self.rng.uniform(-0.06, 0.06)
             z = 0.024 if self.object_kind == "linlee_duck" else 0.015
             yaw = self.rng.uniform(-np.pi, np.pi)
             pos = np.array([x, y, z])
@@ -302,6 +324,9 @@ class DeployEnv:
         self._hold_ticks = 0
         self._caught = False
         self._ground_touch_after_toss = False
+        self._phi = 0.0
+        self._min_horiz = 9.0
+        self._min_tip = 9.0
         self.trace = [] if self.record else None
         return self.observe()
 
@@ -396,14 +421,27 @@ class DeployEnv:
             else:
                 self._hold_ticks = 0
             success = self._hold_ticks >= int(1.0 * C.CONTROL_HZ) and not fallen
-            # reward
+            # 互斥阶段奖励（同一 tick 只取最高阶段）+ 势能整形（只奖赏进度）。
+            # 早期版本分量叠加（每 tick ~2.1），600 tick 回报 ~1200 让 critic
+            # 崩掉（value_loss 500+）；且「站着不动」曾是局部最优（喙尖恒定
+            # 0.20 不低头）——3D 对准的稠密奖励解决了后者。
             horiz = float(np.hypot(obj_pos[0] - tip[0], obj_pos[1] - tip[1]))
-            reward += -1.2 * min(horiz, 0.5)
-            reward += 2.0 * min(max(tip[2] - obj_pos[2], 0.0), 0.10)
-            if beak_contact:
+            tip_to_obj = float(np.linalg.norm(obj_pos - tip))
+            phi = -(1.0 * min(tip_to_obj, 0.45) + 1.0 * min(horiz, 0.5))
+            reward += GAMMA * phi - self._phi
+            self._phi = phi
+            if self._hold_ticks > 0:                      # 5 夹住保持
+                reward += 3.0 * min(lifted, 0.04) + 0.5
+            elif beak_contact:                            # 4 喙部接触
+                reward += 2.0
+            elif tip_to_obj < 0.06:                       # 3 喙尖贴近
                 reward += 1.0
-            if self._hold_ticks > 0:
-                reward += 3.0 * min(lifted, 0.05) + 0.5
+            elif tip[2] < 0.08:                           # 2 低位稳定
+                reward += 0.8
+            else:                                         # 1 站立/接近
+                reward += 0.15
+            # 3D 对准稠密奖励：让「更近」每 tick 严格更优
+            reward += 0.6 * max(0.0, 0.20 - tip_to_obj)
         else:
             if ground_contact and not self._caught:
                 self._ground_touch_after_toss = True
@@ -431,6 +469,8 @@ class DeployEnv:
             reward -= 10.0
             info["fall"] = True
 
+        if success:
+            reward += 20.0
         done = fallen or success or self.ticks >= self.max_ticks
         if done and not success:
             info["timeout"] = self.ticks >= self.max_ticks
@@ -439,6 +479,12 @@ class DeployEnv:
         info["caught"] = self._caught
         info["obj_z"] = float(obj_pos[2])
         info["tilt"] = tilt
+        info["tip_horiz"] = float(np.hypot(obj_pos[0] - tip[0], obj_pos[1] - tip[1]))
+        info["tip_dist"] = float(np.linalg.norm(obj_pos - tip))
+        info["mouth_closed"] = bool(self.data.qpos[self.L["mouth_qpos"]] < 0.1) \
+            if self.L["mouth_qpos"] >= 0 else False
+        self._min_horiz = min(self._min_horiz, info["tip_horiz"])
+        self._min_tip = min(self._min_tip, info["tip_dist"])
 
         if self.record:
             self.trace.append(dict(

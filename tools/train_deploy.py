@@ -65,20 +65,42 @@ class Expert:
     gives the student the stand/walk switch the deployed contract expects.
     """
 
-    def __init__(self, walk_path, stand_path):
+    def __init__(self, walk_path, stand_path, pick_path=None):
         import onnxruntime as ort
         self.walk = ort.InferenceSession(str(walk_path))
         self.stand = ort.InferenceSession(str(stand_path))
         self.walk_input = self.walk.get_inputs()[0].name
         self.stand_input = self.stand.get_inputs()[0].name
+        self.pick = (ort.InferenceSession(str(pick_path)) if pick_path else None)
+        self.pick_input = self.pick.get_inputs()[0].name if self.pick else None
+        self.pick_phase = None
 
-    def act(self, obs):
-        obs = np.asarray(obs, dtype=np.float32)[None, :]
-        twist = obs[0, 48:51]
+    def act(self, obs, ctx=None):
+        """Runtime-style selection: walk when moving, ground-pick when arrived
+        and over the object (phase-clocked, as the official runtime drives it),
+        stand otherwise. The pick policy is what teaches the head-down motion
+        the student would otherwise have to discover from scratch."""
+        obs1 = np.asarray(obs, dtype=np.float32)[None, :]
+        twist = obs1[0, 48:51]
+        if (self.pick is not None and ctx is not None
+                and np.abs(twist).max() < 0.05 and ctx["tip_dist"] < 0.16):
+            if self.pick_phase is None:
+                self.pick_phase = 0.0
+            o = obs1.copy()
+            o[0, 48] = np.cos(2 * np.pi * self.pick_phase)
+            o[0, 49] = np.sin(2 * np.pi * self.pick_phase)
+            o[0, 50] = 0.0
+            o[0, 51:61] = 0.0
+            self.pick_phase += 0.02 / 4.0
+            if self.pick_phase >= 0.7:
+                self.pick_phase = None
+            out = self.pick.run(None, {self.pick_input: o})[0]
+            return np.asarray(out, dtype=np.float64).reshape(-1)
+        self.pick_phase = None
         if np.abs(twist).max() < 0.05:
-            out = self.stand.run(None, {self.stand_input: obs})[0]
+            out = self.stand.run(None, {self.stand_input: obs1})[0]
         else:
-            out = self.walk.run(None, {self.walk_input: obs})[0]
+            out = self.walk.run(None, {self.walk_input: obs1})[0]
         return np.asarray(out, dtype=np.float64).reshape(-1)
 
 
@@ -90,7 +112,7 @@ def run_rollout(env, policy, expert=None, greedy=False, max_ticks=None):
     limit = max_ticks or env.max_ticks
     while ticks < limit:
         if expert is not None:
-            action = expert.act(obs)
+            action = expert.act(obs, env.task_ctx())
             log_prob, value = 0.0, 0.0
         else:
             action, log_prob, value = policy.act_batch(obs[None, :], deterministic=greedy)
@@ -107,6 +129,9 @@ def run_rollout(env, policy, expert=None, greedy=False, max_ticks=None):
         ticks += 1
         if done:
             break
+    info = dict(info)
+    info["min_horiz"] = getattr(env, "_min_horiz", 9.0)
+    info["min_tip"] = getattr(env, "_min_tip", 9.0)
     return obs_l, act_l, lp_l, v_l, r_l, info, ticks
 
 
@@ -114,8 +139,13 @@ def evaluate(env, policy, episodes=6, greedy=True):
     results = []
     for _ in range(episodes):
         _, _, _, _, _, info, ticks = run_rollout(env, policy, greedy=greedy)
-        results.append(dict(success=bool(info["success"]), ticks=ticks,
-                            fall=bool(info["fall"]), obj_z=info["obj_z"]))
+        results.append(dict(
+            success=bool(info["success"]), ticks=ticks,
+            fall=bool(info["fall"]), obj_z=info["obj_z"],
+            min_horiz=round(info.get("min_horiz", 9.0), 3),
+            min_tip=round(info.get("min_tip", 9.0), 3),
+            hold_ticks=info.get("hold_ticks", 0),
+        ))
     successes = sum(r["success"] for r in results)
     return dict(episodes=len(results), successes=successes,
                 success_rate=successes / max(len(results), 1), rows=results)
@@ -131,6 +161,7 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default=None)
     ap.add_argument("--device", default=None)
+    ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--bc-episodes", type=int, default=60,
                     help="expert rollouts for the behaviour-cloning warm start")
     ap.add_argument("--bc-epochs", type=int, default=10)
@@ -139,11 +170,17 @@ def main():
     ap.add_argument("--dagger-rounds", type=int, default=4)
     ap.add_argument("--anchor-coef", type=float, default=0.5,
                     help="imitation regulariser toward the expert during PPO")
+    ap.add_argument("--anchor-decay", type=int, default=150,
+                    help="updates over which the anchor decays to zero")
     ap.add_argument("--no-bc", action="store_true")
     ap.add_argument("--update-interval", type=int, default=16,
                     help="episodes per PPO update")
     ap.add_argument("--eval-every", type=int, default=10, help="updates between evals")
     ap.add_argument("--resume", default=None)
+    ap.add_argument("--video-every", type=int, default=10,
+                    help="updates between training-progress videos (0 disables)")
+    ap.add_argument("--curriculum", default=None,
+                    help="'far,near' metres: anneal object distance over training")
     args = ap.parse_args()
 
     stamp = time.strftime("%Y%m%d-%H%M%S")
@@ -154,7 +191,8 @@ def main():
     expert = None
     if not args.no_bc and args.bc_episodes > 0:
         stand = Path(args.expert).with_name("standing_m6_013_002_p15_19611.onnx")
-        expert = Expert(args.expert, stand)
+        pick = Path(args.expert).with_name("ground_pick_m6_013_004_p15_13750.onnx")
+        expert = Expert(args.expert, stand, pick if pick.is_file() else None)
 
     def make_anchor(expert):
         def anchor(obs_batch):
@@ -162,7 +200,7 @@ def main():
         return anchor
 
     policy = DeployPPO(
-        device=args.device,
+        device=args.device, lr=args.lr, target_kl=0.01,
         anchor=make_anchor(expert) if expert is not None else None,
         anchor_coef=args.anchor_coef,
     )
@@ -172,8 +210,12 @@ def main():
     model, _, layout = scene.build(object_kind=args.object or
                                    DeployEnv.TASKS[args.task]["object"])
     shared = (model, layout)
+    curriculum = None
+    if args.curriculum:
+        far, near = (float(v) for v in args.curriculum.split(","))
+        curriculum = (far, near)
     envs = [DeployEnv(args.task, seed=args.seed * 1000 + i, object_kind=args.object,
-                      shared=shared)
+                      shared=shared, curriculum=curriculum)
             for i in range(args.workers)]
 
     # ---------------------------------------------------------- BC warm start
@@ -242,7 +284,8 @@ def main():
     best_rate = -1.0
     history = []
     eval_env = DeployEnv(args.task, seed=args.seed * 7919 + 5,
-                         object_kind=args.object, shared=shared)
+                         object_kind=args.object, shared=shared,
+                         curriculum=curriculum)
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         # every worker runs one episode at a time; the main thread batches actions
@@ -259,6 +302,18 @@ def main():
                                          next_value=0.0, done=True)
                     episodes_done += 1
                     if episodes_done % args.update_interval == 0:
+                        # Anchor decay: the expert prior contains no head-down
+                        # behaviour, so a constant anchor actively prevents
+                        # learning the very skill the task needs. Keep it early
+                        # (protect the standing prior), then hand over to the
+                        # task reward.
+                        if curriculum is not None:
+                            progress = min(1.0, episodes_done / args.episodes)
+                            for env in (*envs, eval_env):
+                                env.set_curriculum_progress(progress)
+                        if args.anchor_decay > 0:
+                            policy.anchor_coef = args.anchor_coef * max(
+                                0.0, 1.0 - policy.update_count / args.anchor_decay)
                         stats = policy.update()
                         record = dict(update=policy.update_count, episodes=episodes_done,
                                       elapsed_s=round(time.time() - started, 1), **stats)
@@ -272,7 +327,35 @@ def main():
                         if policy.update_count % args.eval_every == 0:
                             ev = evaluate(eval_env, policy)
                             record["eval"] = ev
-                            print(f"[eval] {ev['successes']}/{ev['episodes']}", flush=True)
+                            print(f"[eval] {ev['successes']}/{ev['episodes']} "
+                                  f"存活 {sum(r['ticks'] for r in ev['rows']) // max(ev['episodes'], 1)}",
+                                  flush=True)
+                            if args.video_every > 0 and \
+                                    policy.update_count % args.video_every == 0:
+                                try:
+                                    from ducklab.deploy.video import record_episode
+                                    metrics = {
+                                        "update": policy.update_count,
+                                        "episodes": episodes_done,
+                                        "success_rate": round(ev["success_rate"], 2),
+                                        "mean_ticks": round(
+                                            sum(r["ticks"] for r in ev["rows"])
+                                            / max(ev["episodes"], 1)),
+                                        "min_tip_dist": round(
+                                            min(r["min_tip"] for r in ev["rows"]), 3),
+                                    }
+                                    mp4, png = record_episode(
+                                        eval_env,
+                                        lambda o: policy.act_batch(
+                                            o[None, :], deterministic=True)[0][0],
+                                        out / "videos" /
+                                        f"stage-{policy.update_count:04d}.mp4",
+                                        label=f"update {policy.update_count} ({args.task})",
+                                        metrics=metrics,
+                                    )
+                                    print(f"[video] {mp4.name}", flush=True)
+                                except Exception as exc:
+                                    print(f"[video] 跳过: {exc}", flush=True)
                             save_json(out / "evaluations.json",
                                       [h for h in history if "eval" in h])
                             if ev["success_rate"] > best_rate:

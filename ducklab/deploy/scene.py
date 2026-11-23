@@ -147,6 +147,7 @@ def build_model_xml(object_kind="ball", with_mouth=True):
         '\n<geom name="ground" type="plane" size="2 2 0.1" friction="1 0.005 0.0001" condim="3"/>\n'
         '<light name="key_light" pos="0 -1 2" directional="true" diffuse="0.9 0.9 0.9"/>\n'
         '<light name="fill_light" pos="1 1 2" directional="true" diffuse="0.4 0.4 0.4"/>\n'
+        '<camera name="overview" pos="0.9 -1.1 0.65" xyaxes="0.72 0.69 0  -0.32 0.33 0.89"/>\n'
         + _object_xml(object_kind)
     )
     xml = xml.replace("</worldbody>", world + "</worldbody>")
