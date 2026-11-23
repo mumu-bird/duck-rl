@@ -27,7 +27,7 @@ import numpy as np
 
 from . import contract as C
 from . import scene as S
-from .servo import FittedServo
+from .servo import CommandConditioner
 
 GRAVITY = np.array([0.0, 0.0, -9.81])
 
@@ -134,10 +134,13 @@ class DeployEnv:
         else:  # one immutable mjModel shared by every worker (mjData is per-env)
             self.model, self.L = shared
         self.data = mujoco.MjData(self.model)
-        self.servo = FittedServo(self.model.nu, seed=seed)
+        self.servo = CommandConditioner(self.model.nu, seed=seed)
         self.dof_all = np.append(self.L["dof_joints"], self.L["mouth_dof"]) \
             if self.L["mouth_dof"] >= 0 else self.L["dof_joints"]
-        self.servo.setup_friction(self.model, self.dof_all)  # one-time, constant
+        self.L["gyro_slice"] = slice(
+            int(self.model.sensor_adr[self.L["gyro"]]),
+            int(self.model.sensor_adr[self.L["gyro"]] + 3),
+        )
         self.tracker = Tracker(seed=None if seed is None else seed + 1)
         self.beak = BeakController(task)
         self.record = record
@@ -162,8 +165,11 @@ class DeployEnv:
         q = self.data.qpos
         base_q = q[:7]
         R = _quat_to_mat(base_q[3:7])
-        gyro = R.T @ self.data.qvel[3:6]          # trunk frame
-        gravity = R.T @ np.array([0, 0, -1.0])    # projected gravity
+        # gyro: the official model's IMU-frame gyro sensor (the imu body is
+        # mounted rotated 90 deg about Y relative to the trunk, and the
+        # policies were trained against exactly this sensor reading).
+        gyro = self.data.sensordata[self.L["gyro_slice"]].copy()
+        gravity = R.T @ np.array([0, 0, -1.0])    # projected gravity, trunk frame
         return gyro, gravity, base_q[:3], R
 
     def _full_state(self):
@@ -177,8 +183,8 @@ class DeployEnv:
         return q, dq
 
     def _tip_pose(self):
-        self.data.site_xpos[self.L["mouth_tip"]]  # refreshed by mj_forward
-        return self.data.site_xpos[self.L["mouth_tip"]].copy()
+        # 官方模型的 mouth_tip 站点（喙尖）；模型重建时由 layout 提供
+        return self.data.site_xpos[self.L["mouth_tip_site"]].copy()
 
     def _contacts(self):
         obj, ground = self.L["object_geom"], self.L["ground_geom"]
@@ -234,7 +240,7 @@ class DeployEnv:
         m, d = self.model, self.data
         mujoco.mj_forward(m, d)
         q0 = d.qpos.copy()
-        q0[:7] = [0, 0, C.BASE_HOME_HEIGHT, 1, 0, 0, 0]
+        q0[:7] = [0, 0, self.L["home_height"], 1, 0, 0, 0]
         q0[self.L["qpos_joints"]] = C.DEFAULT_POSITION[
             [i for i in range(C.NUM_JOINTS) if i != C.MOUTH_INDEX]
         ]
@@ -280,14 +286,14 @@ class DeployEnv:
         self._toss_time = 0.0
 
         # settle at home with the servo seeded on the home pose
-        self.servo.reset(q0[self.L["qpos_joints"]].copy() if self.L["mouth_qpos"] < 0
-                         else np.append(q0[self.L["qpos_joints"]], q0[self.L["mouth_qpos"]]))
         targets = C.targets_from_action(np.zeros(C.ACTION_LEN))
-        if self.L["mouth_qpos"] >= 0:
-            targets[C.MOUTH_INDEX] = C.MOUTH_CLOSED
+        if self.L["mouth_qpos"] < 0:
+            targets = np.concatenate(
+                [targets[:C.MOUTH_INDEX], targets[C.MOUTH_INDEX + 1:]]
+            )
+        self.servo.reset(targets)
         for _ in range(30):
-            full_q, full_dq = self._full_state()
-            d.ctrl[:] = self.servo.command(targets, full_q, full_dq, C.PHYSICS_DT)
+            self._write_ctrl(self.servo.step(targets, C.PHYSICS_DT))
             mujoco.mj_step(m, d)
         self.tracker.reset(pos, vel)
         self.beak.reset()
@@ -313,6 +319,21 @@ class DeployEnv:
         command = C.build_command(twist, head_cmd, body=(0.0, 0.0, 0.0))
         return C.build_observation(gyro, gravity, q, dq, self.last_action, command)
 
+    def _write_ctrl(self, targets):
+        """Scatter JOINT_NAMES-ordered targets into data.ctrl by actuator id.
+
+        The official XML declares the 14 policy actuators in joint order and this
+        module appends m_mouth last, so ctrl is NOT in JOINT_NAMES order (the
+        mouth sits at the end, not at index 9).
+        """
+        ctrl = np.zeros(self.model.nu)
+        ctrl[self.L["policy_act"]] = np.concatenate(
+            [targets[:C.MOUTH_INDEX], targets[C.MOUTH_INDEX + 1:]]
+        )
+        if self.L["mouth_act"] >= 0:
+            ctrl[self.L["mouth_act"]] = targets[C.MOUTH_INDEX]
+        self.data.ctrl[:] = ctrl
+
     # ------------------------------------------------------------- step
 
     def step(self, action):
@@ -321,13 +342,16 @@ class DeployEnv:
         action = np.asarray(action, dtype=np.float64).reshape(C.ACTION_LEN)
         targets = C.clip_targets(C.targets_from_action(action))
         if self.L["mouth_qpos"] < 0:
-            targets = targets[:C.MOUTH_INDEX]
+            targets = np.concatenate(
+                [targets[:C.MOUTH_INDEX], targets[C.MOUTH_INDEX + 1:]]
+            )
 
         reward = 0.0
         info = {"success": False, "fall": False, "timeout": False}
         dt_tick = C.SUBSTEPS * C.PHYSICS_DT
 
         for sub in range(C.SUBSTEPS):
+            self._write_ctrl(self.servo.step(targets, C.PHYSICS_DT))
             tip = self._tip_pose()
             obj_pos, _, obj_vel, _ = self._object_pose()
             beak_contact, ground_contact = self._contacts()
@@ -348,9 +372,6 @@ class DeployEnv:
                 targets = np.concatenate(
                     [targets[:C.MOUTH_INDEX], [mouth], targets[C.MOUTH_INDEX + 1:]]
                 )
-            ctrl_targets = targets
-            full_q, full_dq = self._full_state()
-            d.ctrl[:] = self.servo.command(ctrl_targets, full_q, full_dq, C.PHYSICS_DT)
             mujoco.mj_step(m, d)
 
         self.last_action = action
