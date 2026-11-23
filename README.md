@@ -33,6 +33,16 @@
 - WonderRL 安装包未运行；InnoExtract 1.9 与 7-Zip 26.06 均无法读取该安装包，因此尚未确认安装包内部是否带有可训练项目。官方在线仿真器公开的模型和 ONNX 策略已下载，但可修改的 PPO 训练工程、训练配置和检查点仍待取得。
 - **真机型号待核验：**官方论坛介绍称 15 自由度；当前在线仿真器引用的 `robot.xml` 则含 14 个受控铰链关节、1 个浮动根关节和 14 个执行器。开始训练或部署前，需向幻尔确认该模型对应的 Wonder Duck SKU/硬件版本。
 
+## 仓库与克隆
+
+- GitHub：`git@github.com:mumu-bird/duck-rl.git`（源码、配置、文档、测试、交接包；
+  `vendor/`、`runs/`、`.venv` 等大件按 `.gitignore` 排除）
+- 本地裸仓库：`/home/harrisonwang/WonderDuck机器鸭/git/wonderduck.git`
+
+```bash
+git clone git@github.com:mumu-bird/duck-rl.git
+```
+
 官方入口：
 
 - [Wonder Duck / WonderRL 官方介绍](https://forum.hiwonder.com.cn/t/wonderduck/1560)
