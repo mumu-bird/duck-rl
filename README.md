@@ -10,7 +10,7 @@
 
 到货前的 Wonder Duck 仿真训练准备工程，附带从幻尔官方在线仿真器取得的机器人模型与基线策略。可视化仿真资产不等同于可修改的 WonderRL 强化学习训练工程。
 
-[音频服务与任务 SDK](docs/audio/README.md) · [全部音频验收清单](docs/audio/acceptance.md) · [源码审阅与实施记录](docs/speaker-development-plan.md)
+[音频服务与任务 SDK](docs/audio/README.md) · [自定义音频播放协议](docs/audio/playback-protocol.md) · [全部音频验收清单](docs/audio/acceptance.md) · [源码审阅与实施记录](docs/speaker-development-plan.md)
 
 ## 当前状态
 
