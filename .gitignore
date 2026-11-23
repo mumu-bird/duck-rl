@@ -23,3 +23,6 @@ delivery/retrieval-shadow-*/
 delivery/retrieval-check.pyz
 delivery/wonderduck-validation-20261123/
 delivery/wonderduck-validation-20261123-v2/
+
+# MuJoCo 崩溃日志
+MUJOCO_LOG.TXT
