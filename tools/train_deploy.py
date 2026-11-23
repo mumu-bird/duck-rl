@@ -83,10 +83,16 @@ class Expert:
         return out
 
     def act(self, obs, ctx=None):
-        """Runtime-style selection: walk when moving, ground-pick when arrived
-        and over the object (phase-clocked, as the official runtime drives it),
-        stand otherwise. The pick policy is what teaches the head-down motion
-        the student would otherwise have to discover from scratch."""
+        """Hybrid expert: official policy drives the legs, the head aims at the
+        object in closed loop.
+
+        The official ground-pick policy is an open-loop phase gesture that also
+        zeroes the head-command slots of the observation, so the head motion is
+        unpredictable from the obs — the BC error on neck/head_pitch was 0.28/0.35
+        (the worst of all joints, and exactly the ones the task needs). Instead
+        the head is driven from the head-target command the observation already
+        carries (obs[51:55] = absolute neck/head/yaw/roll), which the student can
+        learn exactly; the official walk/stand policies keep the legs balanced."""
         obs1 = np.asarray(obs, dtype=np.float32)[None, :]
         twist = obs1[0, 48:51]
         if (self.pick is not None and ctx is not None
@@ -101,11 +107,19 @@ class Expert:
             self.pick_phase += 0.02 / 4.0
             if self.pick_phase >= 0.7:
                 self.pick_phase = None
+            # 拾取阶段用完整官方手势：只有它的「头+腿」组合自带平衡补偿，
+            # 混合官方腿部 + 自定义低头轨迹会摔（实测 31-93 tick）。
             return self._run(self.pick, self.pick_input, o)
-        self.pick_phase = None
         if np.abs(twist).max() < 0.05:
-            return self._run(self.stand, self.stand_input, obs1)
-        return self._run(self.walk, self.walk_input, obs1)
+            action = self._run(self.stand, self.stand_input, obs1)
+        else:
+            action = self._run(self.walk, self.walk_input, obs1)
+        # 头部闭环瞄准：把观测里的头部目标（obs[51:55]）转成关节偏移。
+        # 关节顺序 4..7 = neck_pitch, head_pitch, head_yaw, head_roll。
+        head_target = obs1[0, 51:55]
+        home_head = C.DEFAULT_POSITION[5:9]
+        action[4:8] = head_target - home_head
+        return action
 
 
 def run_rollout(env, policy, expert=None, greedy=False, max_ticks=None,

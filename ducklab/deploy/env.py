@@ -465,15 +465,19 @@ class DeployEnv:
             else:
                 self._hold_ticks = 0
             success = self._hold_ticks >= int(1.0 * C.CONTROL_HZ) and not fallen
-            # 互斥阶段奖励（同一 tick 只取最高阶段）+ 势能整形（只奖赏进度）。
+            # 稠密接近奖励：身体到物体的距离每 tick 直接给分。势能整形只奖赏
+            # 「进度」，不动则零分——学生于是满足于站着（每 tick +0.15 白拿），
+            # 实测 8000 回合后仍停在物体 15-20cm 外。稠密奖励让「走近并待住」
+            # 的累积（0.8 x 0.3 x 1000 = 240）远超站着的 150。
+            body_dist = float(np.hypot(obj_pos[0] - base_pos[0],
+                                       obj_pos[1] - base_pos[1]))
+            reward += 0.8 * max(0.0, 0.40 - body_dist)
+            # 互斥阶段奖励（同一 tick 只取最高阶段）。
             # 早期版本分量叠加（每 tick ~2.1），600 tick 回报 ~1200 让 critic
             # 崩掉（value_loss 500+）；且「站着不动」曾是局部最优（喙尖恒定
             # 0.20 不低头）——3D 对准的稠密奖励解决了后者。
             horiz = float(np.hypot(obj_pos[0] - tip[0], obj_pos[1] - tip[1]))
             tip_to_obj = float(np.linalg.norm(obj_pos - tip))
-            phi = -(1.0 * min(tip_to_obj, 0.45) + 1.0 * min(horiz, 0.5))
-            reward += GAMMA * phi - self._phi
-            self._phi = phi
             # 阶段间差距加大：低位(0.8→1.5)与贴近(1.0→2.5)，因为「低头会
             # 前移重心」必须靠腿部补偿——这是最难的耦合技能，奖励差距不够
             # 时策略满足于站着（喙尖 0.19 不动）。
@@ -492,7 +496,7 @@ class DeployEnv:
             else:                                         # 1 站立/接近
                 reward += 0.15
             # 3D 对准稠密奖励：让「更近」每 tick 严格更优
-            reward += 0.6 * max(0.0, 0.20 - tip_to_obj)
+            reward += 1.2 * max(0.0, 0.20 - tip_to_obj)
         else:
             if ground_contact and not self._caught:
                 self._ground_touch_after_toss = True
