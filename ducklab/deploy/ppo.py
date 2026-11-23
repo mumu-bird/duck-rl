@@ -39,9 +39,15 @@ class ActorCritic(nn.Module):
 class DeployPPO:
     def __init__(self, device=None, hidden=256, lr=3e-4, clip_ratio=0.2,
                  update_epochs=10, minibatch_size=256, entropy_coef=0.005,
-                 value_coef=0.5, target_kl=0.02, gamma=0.99, gae_lambda=0.95):
+                 value_coef=0.5, target_kl=0.02, gamma=0.99, gae_lambda=0.95,
+                 anchor=None, anchor_coef=0.0):
         self.device = torch.device(
             device or ("cuda" if torch.cuda.is_available() else "cpu"))
+        # anchor: callable(obs_batch_ndarray) -> expert actions, used as an
+        # imitation regulariser so task fine-tuning cannot drift away from the
+        # stand/walk prior the DAgger warm start installed.
+        self.anchor = anchor
+        self.anchor_coef = anchor_coef
         self.net = ActorCritic(hidden=hidden).to(self.device)
         self.optimizer = torch.optim.Adam(self.net.parameters(), lr=lr)
         self.clip_ratio = clip_ratio
@@ -125,6 +131,13 @@ class DeployPPO:
                 idx = order[start:start + self.minibatch_size]
                 mb = torch.as_tensor(idx, device=self.device)
                 mean, value = self.net(obs_t[mb])
+                if self.anchor is not None and self.anchor_coef > 0:
+                    expert = torch.as_tensor(
+                        self.anchor(obs[mb.cpu().numpy()]), dtype=torch.float32,
+                        device=self.device)
+                    anchor_loss = ((torch.tanh(mean) - expert) ** 2).mean()
+                else:
+                    anchor_loss = torch.zeros((), device=self.device)
                 dist = torch.distributions.Normal(mean, self.net.log_std.exp())
                 latent = torch.atanh(torch.clamp(act_t[mb], -0.999, 0.999))
                 correction = torch.log(1.0 - act_t[mb].square() + 1e-6)
@@ -136,7 +149,8 @@ class DeployPPO:
                 policy_loss = -torch.min(s1, s2).mean()
                 value_loss = ((value - ret_t[mb]) ** 2).mean()
                 entropy = dist.entropy().mean()
-                loss = policy_loss + self.value_coef * value_loss - self.entropy_coef * entropy
+                loss = (policy_loss + self.value_coef * value_loss
+                        - self.entropy_coef * entropy + self.anchor_coef * anchor_loss)
                 self.optimizer.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_norm_(self.net.parameters(), 1.0)
@@ -147,7 +161,7 @@ class DeployPPO:
         stats = dict(
             policy_loss=float(policy_loss.item()), value_loss=float(value_loss.item()),
             entropy=float(entropy.item()), approx_kl=float(approx_kl),
-            transitions=n,
+            anchor_loss=float(anchor_loss.item()), transitions=n,
         )
         self.updates_seconds += time.time() - started
         self.clear()

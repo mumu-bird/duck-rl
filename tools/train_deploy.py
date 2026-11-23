@@ -137,6 +137,8 @@ def main():
     ap.add_argument("--expert", default=OFFICIAL_WALK)
     ap.add_argument("--dagger-episodes", type=int, default=48)
     ap.add_argument("--dagger-rounds", type=int, default=4)
+    ap.add_argument("--anchor-coef", type=float, default=0.5,
+                    help="imitation regulariser toward the expert during PPO")
     ap.add_argument("--no-bc", action="store_true")
     ap.add_argument("--update-interval", type=int, default=16,
                     help="episodes per PPO update")
@@ -149,7 +151,21 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     save_json(out / "config.json", vars(args))
 
-    policy = DeployPPO(device=args.device)
+    expert = None
+    if not args.no_bc and args.bc_episodes > 0:
+        stand = Path(args.expert).with_name("standing_m6_013_002_p15_19611.onnx")
+        expert = Expert(args.expert, stand)
+
+    def make_anchor(expert):
+        def anchor(obs_batch):
+            return np.stack([expert.act(o) for o in obs_batch])
+        return anchor
+
+    policy = DeployPPO(
+        device=args.device,
+        anchor=make_anchor(expert) if expert is not None else None,
+        anchor_coef=args.anchor_coef,
+    )
     if args.resume:
         policy.load(args.resume)
     # one immutable model shared by all workers (each keeps its own MjData)
@@ -162,9 +178,7 @@ def main():
 
     # ---------------------------------------------------------- BC warm start
     if not args.no_bc and args.bc_episodes > 0:
-        stand = Path(args.expert).with_name("standing_m6_013_002_p15_19611.onnx")
-        expert = Expert(args.expert, stand)
-        print(f"[bc] 官方行走策略预热：{args.bc_episodes} 回合 x {args.workers} 并行",
+        print(f"[bc] 官方行走/站立策略预热：{args.bc_episodes} 回合 x {args.workers} 并行",
               flush=True)
         obs_all, act_all = [], []
         # One task per env per wave: submitting more tasks than workers would let
@@ -205,11 +219,13 @@ def main():
                         obs_l, _, _, _, _, _, _ = f.result()
                         dagger_obs.extend(obs_l)
                         dagger_act.extend(expert.act(o) for o in obs_l)
-            mse2 = policy.behaviour_clone(
-                np.array(dagger_obs), np.array(dagger_act), epochs=args.bc_epochs
-            )
             obs_all.extend(dagger_obs)
             act_all.extend(dagger_act)
+            # BC on the ACCUMULATED dataset: training on the new frames alone
+            # forgets the expert behaviour within a round or two.
+            mse2 = policy.behaviour_clone(
+                np.array(obs_all), np.array(act_all), epochs=args.bc_epochs
+            )
             print(f"[bc] DAgger 轮 {rnd}: {len(dagger_obs)} 帧，MSE {mse2:.5f}",
                   flush=True)
             save_json(out / "bc.json", dict(
