@@ -244,7 +244,10 @@ class DeployEnv:
         angle deadband keep it stable.
         """
         if self.task == "duck_lift":
-            goal = np.array([obj_pos[0] - 0.12, obj_pos[1], 0.0])
+            # 实测：喙尖水平偏移恒为「躯干+7.2~8.6cm」（低头只降高度、
+            # 不前移）。原目标 obj-12cm 使喙尖永远差 4cm 够不到物体——
+            # 改为 obj-8cm，喙尖正好压在物体正上方。
+            goal = np.array([obj_pos[0] - 0.08, obj_pos[1], 0.0])
             # 停留点在物体后 12cm，但朝向要对准物体——喙尖沿躯干前轴啄出，
             # 躯干朝向偏 10° 就会让啄点横偏 2cm+。
             aim = obj_pos
@@ -313,7 +316,7 @@ class DeployEnv:
             else:
                 x = self.rng.uniform(0.15, 0.26)
             y = self.rng.uniform(-0.03, 0.03)
-            z = 0.024 if self.object_kind == "linlee_duck" else 0.015
+            z = 0.025 if self.object_kind == "linlee_duck" else 0.015
             yaw = self.rng.uniform(-np.pi, np.pi)
             pos = np.array([x, y, z])
             quat = np.array([np.cos(yaw / 2), 0, 0, np.sin(yaw / 2)])

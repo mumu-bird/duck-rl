@@ -47,10 +47,10 @@ MESH_DIR = (MJLAB / "meshes").resolve()
 # jaw_soft; the bill pokes forward from it. Hinge 12 mm behind the pads,
 # 39.375 deg travel drops the lower pad ~18 mm (matching the real servo's
 # measured 448 counts).
-PAD_RADIUS = 0.006
-UPPER_PAD_POS = (0.030, 0.0, 0.008)
-LOWER_PAD_POS = (0.030, 0.0, -0.008)
-MOUTH_HINGE = (0.012, 0.0, 0.0)
+PAD_RADIUS = 0.010
+UPPER_PAD_POS = (0.008, 0.0, -0.078)
+LOWER_PAD_POS = (-0.008, 0.0, -0.078)
+MOUTH_HINGE = (0.000, 0.0, -0.050)
 
 
 def _object_xml(kind):
@@ -63,7 +63,9 @@ def _object_xml(kind):
         inertia = mass / 12.0 * ((2 * h) ** 2 + (2 * h) ** 2)
         geom = f'<geom name="object_geom" type="box" size="{h} {h} {h}" mass="{mass}" friction="1 0.005 0.0001" condim="3" rgba="0.2 0.4 0.85 1"/>'
     elif kind == "linlee_duck":
-        hx, hy, hz, mass = 0.024, 0.017, 0.017, 0.012
+        # ~50 mm tall body: closer to the real toy, and a taller body needs
+        # less head drop for the bill pads to reach it.
+        hx, hy, hz, mass = 0.024, 0.022, 0.025, 0.012
         inertia = mass / 5.0 * (hy * hy + hz * hz)
         geom = (
             f'<geom name="object_geom" type="ellipsoid" size="{hx} {hy} {hz}" '
