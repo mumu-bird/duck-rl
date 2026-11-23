@@ -117,16 +117,19 @@ class DeployEnv:
     """One task instance. Step is one 20 ms policy tick (4 x 5 ms physics)."""
 
     TASKS = {
-        "duck_lift": dict(object="linlee_duck", seconds=12.0),
+        "duck_lift": dict(object="linlee_duck", seconds=20.0),
         "toss_catch": dict(object="ball", seconds=5.0),
     }
 
     def __init__(self, task="duck_lift", seed=None, object_kind=None, record=False,
-                 shared=None, curriculum=None):
+                 shared=None, curriculum=None, freeze_body=False):
         assert task in self.TASKS
         self.task = task
         self.curriculum = curriculum
         self._curriculum_progress = 0.0
+        # freeze_body: 第一阶段解耦——身体目标钳制在 home 附近，只放开头部
+        # 关节，让策略先学「低头对准」而不被平衡问题干扰。
+        self.freeze_body = freeze_body
         cfg = self.TASKS[task]
         self.object_kind = object_kind or cfg["object"]
         self.seconds = cfg["seconds"]
@@ -352,9 +355,15 @@ class DeployEnv:
         mouth sits at the end, not at index 9).
         """
         ctrl = np.zeros(self.model.nu)
-        ctrl[self.L["policy_act"]] = np.concatenate(
+        policy_targets = np.concatenate(
             [targets[:C.MOUTH_INDEX], targets[C.MOUTH_INDEX + 1:]]
         )
+        if self.freeze_body:
+            # 腿部 10 个关节钳回 home（JOINT_NAMES 顺序：左腿 5 + 右腿 5），
+            # 只放开 4 个头部关节（neck/head pitch/yaw/roll，在向量中段）。
+            policy_targets[:5] = C.DEFAULT_POSITION[:5]
+            policy_targets[9:] = C.DEFAULT_POSITION[10:]
+        ctrl[self.L["policy_act"]] = policy_targets
         if self.L["mouth_act"] >= 0:
             ctrl[self.L["mouth_act"]] = targets[C.MOUTH_INDEX]
         self.data.ctrl[:] = ctrl
@@ -430,14 +439,21 @@ class DeployEnv:
             phi = -(1.0 * min(tip_to_obj, 0.45) + 1.0 * min(horiz, 0.5))
             reward += GAMMA * phi - self._phi
             self._phi = phi
+            # 阶段间差距加大：低位(0.8→1.5)与贴近(1.0→2.5)，因为「低头会
+            # 前移重心」必须靠腿部补偿——这是最难的耦合技能，奖励差距不够
+            # 时策略满足于站着（喙尖 0.19 不动）。
+            # 温和配置：过大的阶段差距 + 递减跌倒惩罚在课程拉近后会让策略
+            # 跳进破坏性区域（实测 KL 7.1、存活 21）。数值回到已验证稳定的
+            # 量级，靠训练量而不是奖励锐度推进。
             if self._hold_ticks > 0:                      # 5 夹住保持
                 reward += 3.0 * min(lifted, 0.04) + 0.5
             elif beak_contact:                            # 4 喙部接触
                 reward += 2.0
             elif tip_to_obj < 0.06:                       # 3 喙尖贴近
-                reward += 1.0
+                reward += 1.5
+
             elif tip[2] < 0.08:                           # 2 低位稳定
-                reward += 0.8
+                reward += 1.0
             else:                                         # 1 站立/接近
                 reward += 0.15
             # 3D 对准稠密奖励：让「更近」每 tick 严格更优
@@ -466,6 +482,8 @@ class DeployEnv:
             reward += 0.15
         reward -= 0.004 * float(np.square(action).sum())
         if fallen:
+            # 跌倒惩罚随课程进度递减：低头会前移重心，早期策略需要空间
+            # 练习「边低边稳」——一摔就重罚会把策略逼回「站着不动」。
             reward -= 10.0
             info["fall"] = True
 

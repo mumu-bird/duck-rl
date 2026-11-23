@@ -162,6 +162,7 @@ def main():
     ap.add_argument("--out", default=None)
     ap.add_argument("--device", default=None)
     ap.add_argument("--lr", type=float, default=1e-4)
+    ap.add_argument("--target-kl", type=float, default=0.015)
     ap.add_argument("--bc-episodes", type=int, default=60,
                     help="expert rollouts for the behaviour-cloning warm start")
     ap.add_argument("--bc-epochs", type=int, default=10)
@@ -179,6 +180,8 @@ def main():
     ap.add_argument("--resume", default=None)
     ap.add_argument("--video-every", type=int, default=10,
                     help="updates between training-progress videos (0 disables)")
+    ap.add_argument("--freeze-body", action="store_true",
+                    help="phase 1: clamp leg joints to home, learn head-down only")
     ap.add_argument("--curriculum", default=None,
                     help="'far,near' metres: anneal object distance over training")
     args = ap.parse_args()
@@ -200,7 +203,7 @@ def main():
         return anchor
 
     policy = DeployPPO(
-        device=args.device, lr=args.lr, target_kl=0.01,
+        device=args.device, lr=args.lr, target_kl=args.target_kl,
         anchor=make_anchor(expert) if expert is not None else None,
         anchor_coef=args.anchor_coef,
     )
@@ -215,7 +218,8 @@ def main():
         far, near = (float(v) for v in args.curriculum.split(","))
         curriculum = (far, near)
     envs = [DeployEnv(args.task, seed=args.seed * 1000 + i, object_kind=args.object,
-                      shared=shared, curriculum=curriculum)
+                      shared=shared, curriculum=curriculum,
+                      freeze_body=args.freeze_body)
             for i in range(args.workers)]
 
     # ---------------------------------------------------------- BC warm start
@@ -285,7 +289,7 @@ def main():
     history = []
     eval_env = DeployEnv(args.task, seed=args.seed * 7919 + 5,
                          object_kind=args.object, shared=shared,
-                         curriculum=curriculum)
+                         curriculum=curriculum, freeze_body=args.freeze_body)
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         # every worker runs one episode at a time; the main thread batches actions

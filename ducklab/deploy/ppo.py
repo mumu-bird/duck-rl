@@ -38,8 +38,8 @@ class ActorCritic(nn.Module):
 
 class DeployPPO:
     def __init__(self, device=None, hidden=256, lr=3e-4, clip_ratio=0.2,
-                 update_epochs=10, minibatch_size=256, entropy_coef=0.005,
-                 value_coef=0.5, target_kl=0.02, gamma=0.99, gae_lambda=0.95,
+                 update_epochs=10, minibatch_size=512, entropy_coef=0.005,
+                 value_coef=0.5, target_kl=0.015, gamma=0.99, gae_lambda=0.95,
                  anchor=None, anchor_coef=0.0):
         self.device = torch.device(
             device or ("cuda" if torch.cuda.is_available() else "cpu"))
