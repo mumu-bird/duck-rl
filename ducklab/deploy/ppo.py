@@ -84,11 +84,16 @@ class DeployPPO:
 
     # ------------------------------------------------------------- buffer
 
-    def store_episode(self, obs, actions, log_probs, values, rewards, next_value, done):
-        obs = np.asarray(obs, dtype=np.float32)
-        actions = np.asarray(actions, dtype=np.float32)
-        values = np.asarray(values, dtype=np.float32)
-        rewards = np.asarray(rewards, dtype=np.float32)
+    def store_episode(self, obs, actions, log_probs, values, rewards, next_value, done,
+                      expert_actions=None):
+        obs = np.nan_to_num(np.asarray(obs, dtype=np.float32),
+                            nan=0.0, posinf=0.0, neginf=0.0)
+        actions = np.nan_to_num(np.asarray(actions, dtype=np.float32),
+                                nan=0.0, posinf=0.0, neginf=0.0)
+        values = np.nan_to_num(np.asarray(values, dtype=np.float32),
+                               nan=0.0, posinf=0.0, neginf=0.0)
+        rewards = np.nan_to_num(np.asarray(rewards, dtype=np.float32),
+                                nan=-10.0, posinf=0.0, neginf=0.0)
         advantages = np.zeros_like(rewards)
         gae = 0.0
         for t in reversed(range(len(rewards))):
@@ -103,6 +108,8 @@ class DeployPPO:
             log_probs=np.asarray(log_probs, dtype=np.float32),
             advantages=advantages.astype(np.float32),
             returns=returns.astype(np.float32),
+            expert_actions=(np.asarray(expert_actions, dtype=np.float32)
+                            if expert_actions is not None else None),
         ))
 
     def clear(self):
@@ -114,16 +121,21 @@ class DeployPPO:
         started = time.time()
         obs = np.concatenate([e["obs"] for e in self.buffer])
         actions = np.concatenate([e["actions"] for e in self.buffer])
+        labelled = [e for e in self.buffer if e["expert_actions"] is not None]
+        expert_all = (np.concatenate([e["expert_actions"] for e in labelled])
+                      if labelled else None)
         old_logp = np.concatenate([e["log_probs"] for e in self.buffer])
         adv = np.concatenate([e["advantages"] for e in self.buffer])
         ret = np.concatenate([e["returns"] for e in self.buffer])
+        adv = np.nan_to_num(adv, nan=0.0, posinf=0.0, neginf=0.0)
         adv = (adv - adv.mean()) / (adv.std() + 1e-8)
         n = len(obs)
         obs_t = torch.as_tensor(obs, device=self.device)
         act_t = torch.as_tensor(actions, device=self.device)
         old_t = torch.as_tensor(old_logp, device=self.device)
         adv_t = torch.as_tensor(adv, device=self.device)
-        ret_t = torch.as_tensor(ret, device=self.device)
+        ret_t = torch.as_tensor(np.nan_to_num(ret, nan=0.0, posinf=0.0, neginf=0.0),
+                                device=self.device)
         stats = {}
         for _ in range(self.update_epochs):
             order = np.random.permutation(n)
@@ -131,16 +143,29 @@ class DeployPPO:
                 idx = order[start:start + self.minibatch_size]
                 mb = torch.as_tensor(idx, device=self.device)
                 mean, value = self.net(obs_t[mb])
-                if self.anchor is not None and self.anchor_coef > 0:
-                    expert = torch.as_tensor(
-                        self.anchor(obs[mb.cpu().numpy()]), dtype=torch.float32,
-                        device=self.device)
-                    anchor_loss = ((torch.tanh(mean) - expert) ** 2).mean()
+                # 锚定目标：优先用 rollout 时记录的专家标注（DAgger 式持续标注，
+                # 专家选择带 env 上下文，拾取策略能正确触发）；无标注时退回
+                # anchor 回调（注意：回调没有 env 上下文，拾取分支不会触发）。
+                if self.anchor_coef > 0:
+                    if expert_all is not None:
+                        expert = torch.as_tensor(expert_all[mb.cpu().numpy()],
+                                                 dtype=torch.float32, device=self.device)
+                    elif self.anchor is not None:
+                        expert = torch.as_tensor(
+                            self.anchor(obs[mb.cpu().numpy()]), dtype=torch.float32,
+                            device=self.device)
+                    else:
+                        expert = None
+                    if expert is not None:
+                        anchor_loss = ((torch.tanh(mean) - expert) ** 2).mean()
+                    else:
+                        anchor_loss = torch.zeros((), device=self.device)
                 else:
                     anchor_loss = torch.zeros((), device=self.device)
                 dist = torch.distributions.Normal(mean, self.net.log_std.exp())
-                latent = torch.atanh(torch.clamp(act_t[mb], -0.999, 0.999))
-                correction = torch.log(1.0 - act_t[mb].square() + 1e-6)
+                act_clamped = torch.clamp(act_t[mb], -0.999, 0.999)
+                latent = torch.atanh(act_clamped)
+                correction = torch.log(1.0 - act_clamped.square() + 1e-6)
                 log_prob = (dist.log_prob(latent) - correction).sum(dim=-1)
                 ratio = (log_prob - old_t[mb]).exp()
                 approx_kl = (old_t[mb] - log_prob).mean().item()

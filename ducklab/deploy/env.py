@@ -235,19 +235,53 @@ class DeployEnv:
                        C.JOINT_LIMITS[[5, 6, 7, 8], 0], C.JOINT_LIMITS[[5, 6, 7, 8], 1])
 
     def _twist_command(self, obj_pos, obj_vel):
+        """Go-to-goal in the trunk frame.
+
+        The old world-frame heading (atan2(dy, dx)) flips to +-pi the moment
+        the duck overshoots the goal, so vyaw oscillated between +-1 and the
+        duck never settled — the expert mix therefore never reached the pick
+        policy. Body-frame errors with a clamped forward denominator and an
+        angle deadband keep it stable.
+        """
         if self.task == "duck_lift":
-            # stand off point: 0.24 m in front of the object along +x
             goal = np.array([obj_pos[0] - 0.12, obj_pos[1], 0.0])
+            # 停留点在物体后 12cm，但朝向要对准物体——喙尖沿躯干前轴啄出，
+            # 躯干朝向偏 10° 就会让啄点横偏 2cm+。
+            aim = obj_pos
         else:
-            # pursue the predicted intercept point ahead of the ball
             goal = obj_pos + obj_vel * 0.35
+            aim = goal
         base = self.data.qpos[:3]
-        d = goal - base
-        dist = float(np.hypot(d[0], d[1]))
-        heading = float(np.arctan2(d[1], max(d[0], 1e-6)))
-        vx = float(np.clip(1.6 * dist, 0.0, C.MAX_LINEAR))
-        vyaw = float(np.clip(1.8 * heading, -C.MAX_ANGULAR, C.MAX_ANGULAR))
-        return np.array([vx, 0.0, vyaw])
+        q = self.data.qpos[3:7]
+        yaw = float(np.arctan2(2.0 * (q[0] * q[3] + q[1] * q[2]),
+                               1.0 - 2.0 * (q[2] * q[2] + q[3] * q[3])))
+        dx, dy = float(goal[0] - base[0]), float(goal[1] - base[1])
+        fwd = float(np.cos(yaw) * dx + np.sin(yaw) * dy)
+        lat = float(-np.sin(yaw) * dx + np.cos(yaw) * dy)
+        # 到位滞回：进入到位态后只做朝向修正，不再走路——否则边瞄准边移动
+        # 会震荡，永远进不了 stand/pick 分支（实测 stand=0、喙尖只到 0.15）。
+        pos_err = float(np.hypot(fwd, lat))
+        if pos_err < 0.07:
+            self._arrived = True
+        elif pos_err > 0.16:
+            self._arrived = False
+        if self._arrived:
+            ax, ay = float(aim[0] - base[0]), float(aim[1] - base[1])
+            aim_angle = float(np.arctan2(-np.sin(yaw) * ax + np.cos(yaw) * ay,
+                                         np.cos(yaw) * ax + np.sin(yaw) * ay))
+            if abs(aim_angle) > 0.12:
+                return np.array([0.0, 0.0, float(np.clip(
+                    1.5 * aim_angle, -C.MAX_ANGULAR, C.MAX_ANGULAR))])
+            return np.zeros(3)
+        angle = float(np.arctan2(lat, max(fwd, 0.05)))
+        if abs(angle) > 0.15:
+            vyaw = float(np.clip(1.5 * angle, -C.MAX_ANGULAR, C.MAX_ANGULAR))
+            vx = float(np.clip(0.8 * max(fwd, 0.0), 0.0, C.MAX_LINEAR))
+        else:
+            vyaw = 0.0
+            vx = float(np.clip(1.6 * max(fwd, 0.0), 0.0, C.MAX_LINEAR))
+        vy = float(np.clip(0.5 * lat, -0.05, 0.05))
+        return np.array([vx, vy, vyaw])
 
     # ------------------------------------------------------------- reset
 
@@ -278,7 +312,7 @@ class DeployEnv:
                 x = self.rng.uniform(max(0.10, span - 0.07), span)
             else:
                 x = self.rng.uniform(0.15, 0.26)
-            y = self.rng.uniform(-0.06, 0.06)
+            y = self.rng.uniform(-0.03, 0.03)
             z = 0.024 if self.object_kind == "linlee_duck" else 0.015
             yaw = self.rng.uniform(-np.pi, np.pi)
             pos = np.array([x, y, z])
@@ -328,6 +362,7 @@ class DeployEnv:
         self._caught = False
         self._ground_touch_after_toss = False
         self._phi = 0.0
+        self._arrived = False
         self._min_horiz = 9.0
         self._min_tip = 9.0
         self.trace = [] if self.record else None
@@ -489,6 +524,9 @@ class DeployEnv:
 
         if success:
             reward += 20.0
+        # 仿真爆炸瞬间 tip/obj 可能是 NaN，奖励随之 NaN 并污染 GAE。
+        if not np.isfinite(reward):
+            reward = -10.0
         done = fallen or success or self.ticks >= self.max_ticks
         if done and not success:
             info["timeout"] = self.ticks >= self.max_ticks

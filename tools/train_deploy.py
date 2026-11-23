@@ -75,6 +75,13 @@ class Expert:
         self.pick_input = self.pick.get_inputs()[0].name if self.pick else None
         self.pick_phase = None
 
+    def _run(self, session, name, obs):
+        out = session.run(None, {name: obs})[0]
+        out = np.asarray(out, dtype=np.float64).reshape(-1)
+        if not np.isfinite(out).all():
+            out = np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
+        return out
+
     def act(self, obs, ctx=None):
         """Runtime-style selection: walk when moving, ground-pick when arrived
         and over the object (phase-clocked, as the official runtime drives it),
@@ -83,7 +90,7 @@ class Expert:
         obs1 = np.asarray(obs, dtype=np.float32)[None, :]
         twist = obs1[0, 48:51]
         if (self.pick is not None and ctx is not None
-                and np.abs(twist).max() < 0.05 and ctx["tip_dist"] < 0.16):
+                and np.abs(twist).max() < 0.05 and ctx["horiz"] < 0.13):
             if self.pick_phase is None:
                 self.pick_phase = 0.0
             o = obs1.copy()
@@ -94,31 +101,39 @@ class Expert:
             self.pick_phase += 0.02 / 4.0
             if self.pick_phase >= 0.7:
                 self.pick_phase = None
-            out = self.pick.run(None, {self.pick_input: o})[0]
-            return np.asarray(out, dtype=np.float64).reshape(-1)
+            return self._run(self.pick, self.pick_input, o)
         self.pick_phase = None
         if np.abs(twist).max() < 0.05:
-            out = self.stand.run(None, {self.stand_input: obs1})[0]
-        else:
-            out = self.walk.run(None, {self.walk_input: obs1})[0]
-        return np.asarray(out, dtype=np.float64).reshape(-1)
+            return self._run(self.stand, self.stand_input, obs1)
+        return self._run(self.walk, self.walk_input, obs1)
 
 
-def run_rollout(env, policy, expert=None, greedy=False, max_ticks=None):
-    """One episode; returns transition lists plus a summary."""
+def run_rollout(env, policy, expert=None, greedy=False, max_ticks=None,
+                label_only=False):
+    """One episode; returns transition lists plus a summary.
+
+    When an expert is available, every student transition is also labelled with
+    the expert's context-aware action (DAgger-style continuous labelling) so the
+    PPO update can anchor on it.
+    """
     obs = env.reset()
-    obs_l, act_l, lp_l, v_l, r_l = [], [], [], [], []
+    obs_l, act_l, lp_l, v_l, r_l, exp_l = [], [], [], [], [], []
     ticks = 0
     limit = max_ticks or env.max_ticks
     while ticks < limit:
-        if expert is not None:
+        if expert is not None and not label_only:
+            # BC/DAgger 模式：专家驱动
             action = expert.act(obs, env.task_ctx())
             log_prob, value = 0.0, 0.0
         else:
+            # 学生驱动（PPO 或评估）
             action, log_prob, value = policy.act_batch(obs[None, :], deterministic=greedy)
             action = action[0]
             log_prob = float(log_prob[0]) if log_prob is not None else 0.0
             value = float(value[0])
+        if expert is not None:
+            # 专家标注（带 env 上下文，拾取策略能正确触发）
+            exp_l.append(expert.act(obs, env.task_ctx()))
         next_obs, reward, done, info = env.step(action)
         obs_l.append(obs)
         act_l.append(action)
@@ -132,13 +147,13 @@ def run_rollout(env, policy, expert=None, greedy=False, max_ticks=None):
     info = dict(info)
     info["min_horiz"] = getattr(env, "_min_horiz", 9.0)
     info["min_tip"] = getattr(env, "_min_tip", 9.0)
-    return obs_l, act_l, lp_l, v_l, r_l, info, ticks
+    return obs_l, act_l, lp_l, v_l, r_l, info, ticks, exp_l
 
 
 def evaluate(env, policy, episodes=6, greedy=True):
     results = []
     for _ in range(episodes):
-        _, _, _, _, _, info, ticks = run_rollout(env, policy, greedy=greedy)
+        _, _, _, _, _, info, ticks, _ = run_rollout(env, policy, greedy=greedy)
         results.append(dict(
             success=bool(info["success"]), ticks=ticks,
             fall=bool(info["fall"]), obj_z=info["obj_z"],
@@ -258,13 +273,16 @@ def main():
                     lo = wave * args.workers
                     hi = min(lo + args.workers, args.dagger_episodes)
                     futures = [
-                        pool.submit(run_rollout, envs[i - lo], policy, greedy=False)
+                        # 必须传 expert：run_rollout 靠它给每个学生状态做标注
+                        pool.submit(run_rollout, envs[i - lo], policy, greedy=False,
+                                    expert=expert)
                         for i in range(lo, hi)
                     ]
                     for f in futures:
-                        obs_l, _, _, _, _, _, _ = f.result()
+                        # run_rollout 已用带上下文的专家标注了每个学生状态
+                        obs_l, _, _, _, _, _, _, exp_l = f.result()
                         dagger_obs.extend(obs_l)
-                        dagger_act.extend(expert.act(o) for o in obs_l)
+                        dagger_act.extend(exp_l)
             obs_all.extend(dagger_obs)
             act_all.extend(dagger_act)
             # BC on the ACCUMULATED dataset: training on the new frames alone
@@ -293,7 +311,11 @@ def main():
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         # every worker runs one episode at a time; the main thread batches actions
-        pending = {i: pool.submit(run_rollout, envs[i], policy) for i in range(args.workers)}
+        # label_only：学生驱动，专家只标注（专家动作不经 tanh、可越界，
+        # 若让专家驱动会把越界动作当成学生动作写入缓冲区，log(1-a^2) 出 NaN）
+        pending = {i: pool.submit(run_rollout, envs[i], policy,
+                                  expert=expert, label_only=True)
+                   for i in range(args.workers)}
         while episodes_done < args.episodes:
             ready = []
             # collect whichever worker finishes first without busy-waiting long
@@ -301,9 +323,10 @@ def main():
             done_set, _ = cf.wait(list(pending.values()), return_when=cf.FIRST_COMPLETED)
             for env_index, future in list(pending.items()):
                 if future in done_set:
-                    obs_l, act_l, lp_l, v_l, r_l, info, ticks = future.result()
+                    obs_l, act_l, lp_l, v_l, r_l, info, ticks, exp_l = future.result()
                     policy.store_episode(obs_l, act_l, lp_l, v_l, r_l,
-                                         next_value=0.0, done=True)
+                                         next_value=0.0, done=True,
+                                         expert_actions=exp_l if exp_l else None)
                     episodes_done += 1
                     if episodes_done % args.update_interval == 0:
                         # Anchor decay: the expert prior contains no head-down
@@ -369,7 +392,9 @@ def main():
                                            out / "policy-best.pt")
                                 policy.export_onnx(out / "policy-best.onnx")
                     if episodes_done < args.episodes:
-                        pending[env_index] = pool.submit(run_rollout, envs[env_index], policy)
+                        pending[env_index] = pool.submit(
+                            run_rollout, envs[env_index], policy,
+                            expert=expert, label_only=True)
 
     summary = dict(task=args.task, episodes=episodes_done,
                    best_eval_success_rate=best_rate,
