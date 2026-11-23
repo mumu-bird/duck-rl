@@ -484,19 +484,27 @@ class DeployEnv:
             # 温和配置：过大的阶段差距 + 递减跌倒惩罚在课程拉近后会让策略
             # 跳进破坏性区域（实测 KL 7.1、存活 21）。数值回到已验证稳定的
             # 量级，靠训练量而不是奖励锐度推进。
-            if self._hold_ticks > 0:                      # 5 夹住保持
+            if self._hold_ticks > 0:                      # 6 夹住保持
                 reward += 3.0 * min(lifted, 0.04) + 0.5
-            elif beak_contact:                            # 4 喙部接触
+            elif beak_contact:                            # 5 喙部接触
                 reward += 2.0
-            elif tip_to_obj < 0.06:                       # 3 喙尖贴近
+            elif tip_to_obj < 0.06:                       # 4 喙尖贴近
                 reward += 1.5
+            # 极准大奖：喙尖 3cm 内且水平 2cm 内—— pads 能夹住物体的区域
+            if tip_to_obj < 0.03 and horiz < 0.02:
+                reward += 3.0
 
-            elif tip[2] < 0.08:                           # 2 低位稳定
+            elif tip[2] < 0.08:                           # 3 低位稳定
                 reward += 1.0
+            elif tip[2] < 0.16:                           # 2 中度低头（过渡）
+                reward += 0.6
             else:                                         # 1 站立/接近
                 reward += 0.15
             # 3D 对准稠密奖励：让「更近」每 tick 严格更优
-            reward += 1.2 * max(0.0, 0.20 - tip_to_obj)
+            # 对准奖励权重 3.0：喙尖从 6cm 移到 3cm 每 tick 多拿 0.1，900 tick
+            # 累积 90——足以压过「站着不动」的吸引力。实测学生对准停在 6cm
+            # （ pads 在喙尖 ±8mm，够不到 6cm 外的物体）。
+            reward += 3.0 * max(0.0, 0.20 - tip_to_obj)
         else:
             if ground_contact and not self._caught:
                 self._ground_touch_after_toss = True
