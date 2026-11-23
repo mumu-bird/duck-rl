@@ -1,0 +1,282 @@
+{
+  "split": "test",
+  "seed": 97200,
+  "trials_per_object_mode": 20,
+  "bin_m": [
+    0.34,
+    0.19
+  ],
+  "no_toss": false,
+  "profiles": {
+    "general": {
+      "reach": 0.072,
+      "close": 47,
+      "rise": 82
+    },
+    "thin": {
+      "reach": 0.091,
+      "close": 60,
+      "rise": 98
+    }
+  },
+  "weights_sha256": "0bd8afd2461e27972b2bee70fcd065d7879e2adb5c6767851e81a5f22091acab",
+  "total": 180,
+  "results": {
+    "040_large_marker": {
+      "assisted": {
+        "detected": 18,
+        "target_contact": 16,
+        "lifted": 16,
+        "held_at_release": 16,
+        "in_tray_at_end": 15,
+        "pose_restored": 18,
+        "success": 15,
+        "wrong_contact": 0,
+        "fixture_activated": 16,
+        "trials": 20,
+        "success_seeds": [
+          97200,
+          97203,
+          97205,
+          97207,
+          97208,
+          97209,
+          97210,
+          97211,
+          97212,
+          97213,
+          97214,
+          97215,
+          97216,
+          97218,
+          97219
+        ],
+        "stops": {
+          "sequence_finished": 16,
+          "no_new_settled_object": 2,
+          "no_hold_after_lift": 2
+        },
+        "successful_median_home_cm": 1.1582,
+        "successful_median_yaw_deg": 1.9114,
+        "successful_median_joint_rms_rad": 0.0014
+      },
+      "contact": {
+        "detected": 18,
+        "target_contact": 16,
+        "lifted": 0,
+        "held_at_release": 0,
+        "in_tray_at_end": 0,
+        "pose_restored": 18,
+        "success": 0,
+        "wrong_contact": 2,
+        "fixture_activated": 0,
+        "trials": 20,
+        "success_seeds": [],
+        "stops": {
+          "no_hold_after_lift": 18,
+          "no_new_settled_object": 2
+        },
+        "successful_median_home_cm": null,
+        "successful_median_yaw_deg": null,
+        "successful_median_joint_rms_rad": null
+      },
+      "jaw": {
+        "detected": 20,
+        "target_contact": 19,
+        "lifted": 11,
+        "held_at_release": 8,
+        "in_tray_at_end": 6,
+        "pose_restored": 14,
+        "success": 6,
+        "wrong_contact": 2,
+        "fixture_activated": 0,
+        "trials": 20,
+        "success_seeds": [
+          97204,
+          97206,
+          97207,
+          97209,
+          97210,
+          97217
+        ],
+        "stops": {
+          "no_hold_after_lift": 5,
+          "fall": 4,
+          "sequence_finished": 9,
+          "no_new_settled_object": 1,
+          "approach_timeout": 1
+        },
+        "successful_median_home_cm": 1.6053,
+        "successful_median_yaw_deg": 1.9475,
+        "successful_median_joint_rms_rad": 0.0093
+      }
+    },
+    "058_golf_ball": {
+      "assisted": {
+        "detected": 20,
+        "target_contact": 20,
+        "lifted": 20,
+        "held_at_release": 20,
+        "in_tray_at_end": 19,
+        "pose_restored": 20,
+        "success": 19,
+        "wrong_contact": 0,
+        "fixture_activated": 20,
+        "trials": 20,
+        "success_seeds": [
+          97200,
+          97201,
+          97202,
+          97203,
+          97204,
+          97205,
+          97206,
+          97207,
+          97208,
+          97209,
+          97210,
+          97212,
+          97213,
+          97214,
+          97215,
+          97216,
+          97217,
+          97218,
+          97219
+        ],
+        "stops": {
+          "sequence_finished": 20
+        },
+        "successful_median_home_cm": 1.144,
+        "successful_median_yaw_deg": 2.5625,
+        "successful_median_joint_rms_rad": 0.0014
+      },
+      "contact": {
+        "detected": 20,
+        "target_contact": 20,
+        "lifted": 0,
+        "held_at_release": 0,
+        "in_tray_at_end": 0,
+        "pose_restored": 18,
+        "success": 0,
+        "wrong_contact": 2,
+        "fixture_activated": 0,
+        "trials": 20,
+        "success_seeds": [],
+        "stops": {
+          "no_hold_after_lift": 18,
+          "no_new_settled_object": 2
+        },
+        "successful_median_home_cm": null,
+        "successful_median_yaw_deg": null,
+        "successful_median_joint_rms_rad": null
+      },
+      "jaw": {
+        "detected": 20,
+        "target_contact": 20,
+        "lifted": 13,
+        "held_at_release": 8,
+        "in_tray_at_end": 7,
+        "pose_restored": 10,
+        "success": 7,
+        "wrong_contact": 0,
+        "fixture_activated": 0,
+        "trials": 20,
+        "success_seeds": [
+          97201,
+          97204,
+          97206,
+          97211,
+          97213,
+          97218,
+          97219
+        ],
+        "stops": {
+          "fall": 8,
+          "sequence_finished": 8,
+          "no_hold_after_lift": 2,
+          "no_new_settled_object": 2
+        },
+        "successful_median_home_cm": 1.3129,
+        "successful_median_yaw_deg": 1.7092,
+        "successful_median_joint_rms_rad": 0.0115
+      }
+    },
+    "sony_duck": {
+      "assisted": {
+        "detected": 20,
+        "target_contact": 20,
+        "lifted": 20,
+        "held_at_release": 19,
+        "in_tray_at_end": 8,
+        "pose_restored": 19,
+        "success": 8,
+        "wrong_contact": 0,
+        "fixture_activated": 20,
+        "trials": 20,
+        "success_seeds": [
+          97201,
+          97202,
+          97203,
+          97206,
+          97208,
+          97213,
+          97215,
+          97218
+        ],
+        "stops": {
+          "sequence_finished": 19,
+          "fall": 1
+        },
+        "successful_median_home_cm": 1.4105,
+        "successful_median_yaw_deg": 2.8532,
+        "successful_median_joint_rms_rad": 0.0015
+      },
+      "contact": {
+        "detected": 20,
+        "target_contact": 20,
+        "lifted": 0,
+        "held_at_release": 0,
+        "in_tray_at_end": 0,
+        "pose_restored": 16,
+        "success": 0,
+        "wrong_contact": 3,
+        "fixture_activated": 0,
+        "trials": 20,
+        "success_seeds": [],
+        "stops": {
+          "no_hold_after_lift": 16,
+          "no_new_settled_object": 4
+        },
+        "successful_median_home_cm": null,
+        "successful_median_yaw_deg": null,
+        "successful_median_joint_rms_rad": null
+      },
+      "jaw": {
+        "detected": 20,
+        "target_contact": 20,
+        "lifted": 8,
+        "held_at_release": 4,
+        "in_tray_at_end": 3,
+        "pose_restored": 4,
+        "success": 3,
+        "wrong_contact": 0,
+        "fixture_activated": 0,
+        "trials": 20,
+        "success_seeds": [
+          97202,
+          97206,
+          97214
+        ],
+        "stops": {
+          "sequence_finished": 4,
+          "fall": 15,
+          "approach_timeout": 1
+        },
+        "successful_median_home_cm": 1.084,
+        "successful_median_yaw_deg": 2.9159,
+        "successful_median_joint_rms_rad": 0.0095
+      }
+    }
+  }
+}

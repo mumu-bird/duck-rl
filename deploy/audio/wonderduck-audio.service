@@ -1,0 +1,27 @@
+# Managed by wonderduck-audio installer
+[Unit]
+Description=WonderDuck shared task audio and media library
+After=local-fs.target sound.target alsa-restore.service aic3104-init.service
+Before=wonderduck-prompt-sounds.service
+
+[Service]
+Type=simple
+User=root
+Group=robot
+Environment=PYTHONPATH=/opt/wonderduck-audio/current
+ExecStart=/usr/bin/python3 -m duckaudio serve --config /etc/wonderduck-audio/audio.toml
+Restart=on-failure
+RestartSec=2s
+StateDirectory=wonderduck-audio
+StateDirectoryMode=0750
+RuntimeDirectory=wonderduck-audio
+RuntimeDirectoryMode=0770
+UMask=0007
+TimeoutStopSec=220
+KillMode=control-group
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

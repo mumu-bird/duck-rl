@@ -1,0 +1,45 @@
+{
+  "generator": "eSpeak NG, cmn, 160 words/minute; normalized PCM 16-bit/48 kHz/mono",
+  "clips": [
+    {
+      "key": "task.started",
+      "name": "任务开始",
+      "text": "我出发啦。",
+      "file": "task.started.wav",
+      "sha256": "762c808638bc31a94721761d0fcd9116daa365a292ea814c6892efda2a50e9b6",
+      "duration": 1.7041875
+    },
+    {
+      "key": "task.target_found",
+      "name": "找到目标",
+      "text": "找到目标了。",
+      "file": "task.target_found.wav",
+      "sha256": "fab1370ed33b3917618477b81f396b33f02c98e007364c89f4dd454754c97092",
+      "duration": 2.2565625
+    },
+    {
+      "key": "task.succeeded",
+      "name": "任务完成",
+      "text": "任务完成啦。",
+      "file": "task.succeeded.wav",
+      "sha256": "7a96bceb3f478f69b38b7ab70a24de608039917d53c2d830a0d6b78b839b6d4d",
+      "duration": 2.1797291666666667
+    },
+    {
+      "key": "task.failed",
+      "name": "任务未完成",
+      "text": "这次没有完成，我会继续努力。",
+      "file": "task.failed.wav",
+      "sha256": "d2aba63665b0f17fe3fa260bdf79ec1abcde71257f24b59927979fec707da509",
+      "duration": 4.9874583333333335
+    },
+    {
+      "key": "task.needs_help",
+      "name": "请求帮助",
+      "text": "我需要帮助，请帮帮我。",
+      "file": "task.needs_help.wav",
+      "sha256": "157085165e8d22dd687446dbf791a65ad76c285f8147fc649d7275a1bc3aa4bb",
+      "duration": 3.935375
+    }
+  ]
+}

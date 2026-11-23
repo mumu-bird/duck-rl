@@ -1,0 +1,18 @@
+[audio]
+backend = "board"
+player = "/home/wonderduck/wonderduck/scripts/audio-output.py"
+device = "plughw:aic3104"
+capture_device = "plughw:aic3104,0"
+data_dir = "/var/lib/wonderduck-audio"
+socket = "/run/wonderduck-audio/audio.sock"
+lock_file = "/run/lock/audio-output.lock"
+host = "127.0.0.1"
+port = 8092
+tts_voice = "cmn"
+warmup_ms = 500
+max_upload_bytes = 20971520
+max_duration_seconds = 300
+max_library_bytes = 536870912
+max_queue = 32
+max_job_seconds = 3600
+max_record_seconds = 120

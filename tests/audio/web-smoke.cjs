@@ -1,0 +1,115 @@
+/* Isolated local-app E2E: Chrome fake microphone; no user profile or real microphone. */
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || '/tmp/wonderduck-audio-browser/node_modules/playwright');
+const root = path.resolve(__dirname, '../..');
+const dir = path.join(root, 'runs/audio-acceptance');
+const stamp = Date.now();
+async function main() {
+  const browser = await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true,
+    args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--mute-audio']});
+  const context = await browser.newContext({viewport:{width:1440,height:1000},permissions:['microphone'],acceptDownloads:true});
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  const tests = [];
+  const token = (await fs.readFile(path.join(dir,'access-token'),'utf8')).trim();
+  async function api(route, method='GET', data) {
+    const response = await context.request.fetch('http://127.0.0.1:8092'+route, {method,headers:{Authorization:'Bearer '+token},data});
+    assert.ok(response.ok(),`${method} ${route}: ${response.status()} ${await response.text()}`);
+    return response.json();
+  }
+  try {
+    await page.goto('http://127.0.0.1:8092');
+    await page.locator('#token').fill(token);
+    await page.locator('#login-form button').click();
+    await page.locator('#workspace').waitFor({state:'visible'});
+    assert.match(await page.locator('#mode-banner').innerText(),/模拟验收/);
+    tests.push('登录与模拟环境标识');
+    await page.locator('#audio-file').setInputFiles(path.join(root,'assets/audio/task.failed.wav'));
+    await page.locator('#upload-name').fill('网页验收音频');
+    await page.locator('#upload-key').fill('web.qa.'+stamp);
+    await page.locator('#upload-submit').click();
+    let row = page.locator('.clip-row').filter({hasText:'web.qa.'+stamp});
+    await row.waitFor();
+    await row.getByRole('button',{name:'改名',exact:true}).click();
+    await page.locator('#rename-name').fill('网页验收已改名');
+    await page.locator('#rename-form').getByRole('button',{name:'保存',exact:true}).click();
+    await row.getByText('网页验收已改名',{exact:true}).waitFor();
+    const downloadPromise=page.waitForEvent('download');
+    await row.getByRole('button',{name:'下载',exact:true}).click();
+    const download=await downloadPromise;
+    assert.equal(download.suggestedFilename(),'web.qa.'+stamp+'.wav');
+    await download.saveAs(path.join(dir,'browser-download.wav'));
+    await row.getByRole('button',{name:'电脑试听',exact:true}).click();
+    tests.push('上传、改名、下载和本机预览');
+    await page.locator('[data-page="queue"]').click();
+    await page.locator('#repeat').fill('0');
+    await page.locator('[data-page="library"]').click();
+    await row.getByRole('button',{name:'在小鸭子上播放',exact:true}).click();
+    let jobRow=page.locator('.job').filter({hasText:'网页验收已改名'}).first();
+    await jobRow.getByRole('button',{name:'暂停',exact:true}).click();
+    await jobRow.getByRole('button',{name:'继续',exact:true}).waitFor();
+    const slider=jobRow.locator('input[type="range"]');
+    await slider.fill('1.5');await slider.dispatchEvent('change');
+    await jobRow.getByRole('button',{name:'继续',exact:true}).click();
+    await jobRow.getByRole('button',{name:'停止',exact:true}).click();
+    await jobRow.getByText('已停止',{exact:true}).waitFor();
+    await page.locator('#repeat').fill('1');
+    tests.push('循环播放、暂停、跳转、继续、停止');
+    await page.locator('[data-page="library"]').click();
+    await page.locator('#volume').fill('43');await page.locator('#volume').dispatchEvent('change');
+    await page.locator('#muted').check();
+    assert.equal((await api('/api/settings')).muted,true);
+    await page.locator('#muted').uncheck();
+    tests.push('音量与静音');
+    await page.locator('[data-page="create"]').click();
+    await page.locator('#speech-text').fill('你好，这是网页验收的中文语音。');
+    await page.locator('#speech-save').click();
+    await page.getByText('语音已保存到音频库',{exact:true}).waitFor();
+    assert.equal(await page.locator('#robot-record').isDisabled(),true);
+    tests.push('网页真实中文语音合成');
+    await page.locator('#browser-autoplay').uncheck();
+    await page.locator('#browser-record-name').fill('浏览器模拟麦克风验收');
+    await page.locator('#browser-record').click();
+    await page.getByText('正在录音，最多 2 分钟',{exact:true}).waitFor();
+    await page.waitForTimeout(1300); // Generate enough MediaRecorder samples, not waiting for UI.
+    await page.locator('#browser-record').click();
+    await page.getByText('录音已保存',{exact:true}).waitFor({timeout:15000});
+    tests.push('浏览器模拟麦克风录音、WebM转换与入库');
+    await page.locator('[data-page="tasks"]').click();
+    await page.locator('#demo-task-id').fill('web-'+stamp);
+    await page.getByRole('button',{name:'发现目标',exact:true}).click();
+    await page.getByRole('button',{name:'发现目标',exact:true}).click();
+    const task='retrieval:web-'+stamp;
+    const taskJobs=(await api('/api/jobs?task_id='+encodeURIComponent(task))).jobs;
+    assert.equal(taskJobs.length,1);
+    await page.locator('#cancel-demo').click();
+    tests.push('任务事件幂等与按实例取消');
+    await page.locator('[data-page="acceptance"]').click();
+    await page.locator('#acceptance-list select').first().waitFor();
+    assert.equal(await page.locator('#acceptance-list').locator('option[value="pass"]:disabled').count(),6);
+    const exportPromise=page.waitForEvent('download');
+    await page.locator('#export-acceptance').click();
+    await (await exportPromise).saveAs(path.join(dir,'browser-acceptance-export.json'));
+    tests.push('验收表、真机限制与JSON导出');
+    await page.locator('[data-page="library"]').click();
+    page.once('dialog',dialog=>dialog.accept());
+    await row.getByRole('button',{name:'删除',exact:true}).click();
+    await row.waitFor({state:'detached'});
+    await page.screenshot({path:path.join(dir,'console-desktop.png'),fullPage:true});
+    await page.setViewportSize({width:390,height:844});
+    await page.screenshot({path:path.join(dir,'console-mobile.png'),fullPage:true});
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'mobile viewport must not overflow horizontally');
+    tests.push('桌面与手机布局、音频删除');
+    assert.deepEqual(errors,[]);
+    await fs.writeFile(path.join(dir,'browser-test-report.json'),JSON.stringify({passed:true,tests,errors,microphone:'Chrome synthetic input; not robot or real microphone',screenshots:['console-desktop.png','console-mobile.png']},null,2));
+    console.log(JSON.stringify({passed:true,tests,errors},null,2));
+  } catch(error) {
+    await page.screenshot({path:path.join(dir,'browser-failure.png'),fullPage:true});
+    console.error(JSON.stringify({completed:tests,errors},null,2));
+    throw error;
+  } finally { await browser.close(); }
+}
+main().catch(error=>{console.error(error);process.exitCode=1});

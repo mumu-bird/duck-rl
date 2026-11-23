@@ -1,0 +1,227 @@
+{
+  "schema": "wonderduck.retrieval.observation.v1",
+  "obs_size": 29,
+  "action_size": 6,
+  "observation_order": [
+    {
+      "index": 0,
+      "name": "pick_flag",
+      "normalization": "0 or 1",
+      "source": "stage"
+    },
+    {
+      "index": 1,
+      "name": "delivery_flag",
+      "normalization": "0 or 1",
+      "source": "stage"
+    },
+    {
+      "index": 2,
+      "name": "target_forward",
+      "normalization": "m / .5 clipped",
+      "source": "camera projection + odometry"
+    },
+    {
+      "index": 3,
+      "name": "target_left",
+      "normalization": "m / .5 clipped",
+      "source": "camera projection + odometry"
+    },
+    {
+      "index": 4,
+      "name": "target_scale",
+      "normalization": "sqrt(pixel_box_area)/64 clipped 0..1",
+      "source": "camera detector"
+    },
+    {
+      "index": 5,
+      "name": "target_elongation",
+      "normalization": "0..1",
+      "source": "camera silhouette"
+    },
+    {
+      "index": 6,
+      "name": "target_fill",
+      "normalization": "0..1",
+      "source": "camera silhouette"
+    },
+    {
+      "index": 7,
+      "name": "tray_forward",
+      "normalization": "m / .5 clipped",
+      "source": "calibrated tray + odometry"
+    },
+    {
+      "index": 8,
+      "name": "tray_left",
+      "normalization": "m / .5 clipped",
+      "source": "calibrated tray + odometry"
+    },
+    {
+      "index": 9,
+      "name": "home_forward",
+      "normalization": "m / .5 clipped",
+      "source": "odometry"
+    },
+    {
+      "index": 10,
+      "name": "home_left",
+      "normalization": "m / .5 clipped",
+      "source": "odometry"
+    },
+    {
+      "index": 11,
+      "name": "target_axis_sin",
+      "normalization": "sin(2*axis)",
+      "source": "camera silhouette"
+    },
+    {
+      "index": 12,
+      "name": "target_axis_cos",
+      "normalization": "cos(2*axis)",
+      "source": "camera silhouette"
+    },
+    {
+      "index": 13,
+      "name": "heading_error_sin",
+      "normalization": "sin(2*wrapped heading error)",
+      "source": "yaw and desired heading"
+    },
+    {
+      "index": 14,
+      "name": "heading_error_cos",
+      "normalization": "cos(2*wrapped heading error)",
+      "source": "yaw and desired heading"
+    },
+    {
+      "index": 15,
+      "name": "velocity_forward",
+      "normalization": "m/s / .25 clipped",
+      "source": "foot odometry"
+    },
+    {
+      "index": 16,
+      "name": "velocity_left",
+      "normalization": "m/s / .25 clipped",
+      "source": "foot odometry"
+    },
+    {
+      "index": 17,
+      "name": "imu_angular_x",
+      "normalization": "rad/s / 3 clipped",
+      "source": "IMU frame mapping unverified"
+    },
+    {
+      "index": 18,
+      "name": "imu_angular_y",
+      "normalization": "rad/s / 3 clipped",
+      "source": "IMU frame mapping unverified"
+    },
+    {
+      "index": 19,
+      "name": "imu_angular_z",
+      "normalization": "rad/s / 3 clipped",
+      "source": "IMU frame mapping unverified"
+    },
+    {
+      "index": 20,
+      "name": "up_x",
+      "normalization": "-1..1",
+      "source": "IMU attitude frame mapping unverified"
+    },
+    {
+      "index": 21,
+      "name": "up_y",
+      "normalization": "-1..1",
+      "source": "IMU attitude frame mapping unverified"
+    },
+    {
+      "index": 22,
+      "name": "up_z",
+      "normalization": "-1..1",
+      "source": "IMU attitude frame mapping unverified"
+    },
+    {
+      "index": 23,
+      "name": "neck_pitch",
+      "normalization": "(rad-HOME)/1.2 clipped",
+      "source": "measured encoder id 30; calibration unverified"
+    },
+    {
+      "index": 24,
+      "name": "head_pitch",
+      "normalization": "(rad-HOME)/1.2 clipped",
+      "source": "measured encoder id 31; calibration unverified"
+    },
+    {
+      "index": 25,
+      "name": "head_yaw",
+      "normalization": "(rad-HOME)/1.2 clipped",
+      "source": "measured encoder id 32; calibration unverified"
+    },
+    {
+      "index": 26,
+      "name": "bill_open",
+      "normalization": "rad / radians(39.375), clipped 0..1",
+      "source": "measured encoder id 34; calibration unverified"
+    },
+    {
+      "index": 27,
+      "name": "stage_age",
+      "normalization": "ticks/480 clipped 0..1, 20ms/tick",
+      "source": "monotonic stage timer"
+    },
+    {
+      "index": 28,
+      "name": "attempts",
+      "normalization": "min(attempts,2)/2",
+      "source": "task state"
+    }
+  ],
+  "coordinate_frame": "forward x, left y in simulated robot yaw frame; hardware convention unverified",
+  "policy_scope": "bounded phase-level residuals; not low-level joint targets",
+  "pick_residuals": [
+    "reach +.014m*a0",
+    "close +14ticks*a1",
+    "rise +16ticks*a2",
+    "scoop_pitch +.18rad*a3",
+    "scoop_neck +.12rad*a4",
+    "heading +.12rad*a5"
+  ],
+  "delivery_residuals": [
+    "reach +.026m*a0",
+    "side +.035m*a1",
+    "neck +.16rad*a2",
+    "pitch +.14rad*a3",
+    "release +16ticks*a4",
+    "opening_duration +6ticks*a5"
+  ],
+  "absolute_limits_source": "ducklab/retrieval/episode.py:_choose_pick_profile,_choose_delivery_profile",
+  "official_review": {
+    "robot_socket": "/run/robotd.sock",
+    "media_socket": "/run/mediad/media.sock",
+    "mouth": {
+      "method": "robot.mouth",
+      "field": "open",
+      "units": "0 closed to 1 open"
+    },
+    "head": {
+      "method": "robot.head",
+      "units": "radians into policy command; not post-policy absolute targets"
+    },
+    "stop": {
+      "method": "robot.stop",
+      "meaning": "zero velocity; not torque-off"
+    },
+    "ground_pick": "fixed internally advancing phase; external head/body command zero-padded"
+  },
+  "unavailable_or_unverified": [
+    "real object-change detector calibration",
+    "camera intrinsics/extrinsics and floor projection",
+    "encoder zeros/signs/limits and actual board policy identity",
+    "current simulated bill contact oracle cannot be directly mapped to sensors",
+    "current post-policy head corrections and variable pick phase have no matching public command",
+    "real-time stop/control ownership and measured actuator timings"
+  ],
+  "motion_permitted": false
+}

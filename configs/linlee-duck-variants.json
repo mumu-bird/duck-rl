@@ -1,0 +1,67 @@
+{
+  "assumption": {
+    "description": "Procedural first-pass model for small smooth or slightly soft duck toys; replace ranges with measured LINLEE samples before real-robot deployment.",
+    "mass_grams": [12.0, 34.0],
+    "scale": [0.9, 1.12],
+    "friction": [0.55, 0.92],
+    "surface": "smooth PVC or rubber-like outer skin over a rounded body"
+  },
+  "variants": [
+    {
+      "id": "linlee_round_yellow",
+      "family": "duck",
+      "length": 0.05,
+      "half_m": [0.024, 0.018, 0.020],
+      "mass_grams": [12.0, 28.0],
+      "scale": [0.92, 1.08],
+      "friction": [0.58, 0.86],
+      "body_rgba": ".96 .72 .12 1",
+      "head_rgba": ".98 .79 .18 1",
+      "bill_rgba": ".96 .28 .04 1",
+      "solref": ".035 .65",
+      "solimp": ".86 .96 .018"
+    },
+    {
+      "id": "linlee_pastel_duck",
+      "family": "duck",
+      "length": 0.052,
+      "half_m": [0.025, 0.018, 0.019],
+      "mass_grams": [14.0, 30.0],
+      "scale": [0.9, 1.12],
+      "friction": [0.54, 0.84],
+      "body_rgba": ".76 .88 .78 1",
+      "head_rgba": ".82 .92 .82 1",
+      "bill_rgba": ".95 .34 .07 1",
+      "solref": ".040 .60",
+      "solimp": ".84 .95 .022"
+    },
+    {
+      "id": "linlee_tall_duck",
+      "family": "duck",
+      "length": 0.058,
+      "half_m": [0.026, 0.017, 0.023],
+      "mass_grams": [16.0, 34.0],
+      "scale": [0.92, 1.08],
+      "friction": [0.60, 0.92],
+      "body_rgba": ".93 .66 .76 1",
+      "head_rgba": ".97 .74 .82 1",
+      "bill_rgba": ".94 .26 .04 1",
+      "solref": ".032 .72",
+      "solimp": ".88 .97 .015"
+    },
+    {
+      "id": "linlee_flat_duck",
+      "family": "duck",
+      "length": 0.048,
+      "half_m": [0.023, 0.019, 0.016],
+      "mass_grams": [10.0, 24.0],
+      "scale": [0.94, 1.10],
+      "friction": [0.56, 0.88],
+      "body_rgba": ".85 .77 .54 1",
+      "head_rgba": ".92 .82 .62 1",
+      "bill_rgba": ".95 .30 .04 1",
+      "solref": ".045 .56",
+      "solimp": ".82 .94 .025"
+    }
+  ]
+}

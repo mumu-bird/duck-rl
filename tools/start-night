@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+"""Start one local user service for the current Shanghai night, including after midnight."""
+import subprocess
+import os
+from datetime import datetime, timedelta
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+root = Path(__file__).resolve().parents[1]
+now = datetime.now(ZoneInfo('Asia/Shanghai'))
+if 7 <= now.hour < 22:
+    print('夜间窗口为北京时间 22:00 至次日 07:00。')
+    raise SystemExit(0)
+morning = now.date() + timedelta(days=int(now.hour >= 22))
+unit = 'wonderduck-night-' + morning.strftime('%Y%m%d')
+service = subprocess.run(['systemctl','--user','is-active',unit],capture_output=True,text=True)
+if service.returncode == 0:
+    print(f'{unit} 正在运行。')
+    raise SystemExit(0)
+python = str(root/'.venv/bin/python')
+worker = str(root/'tools/nightly.py')
+if not service.stderr.strip():
+    started = subprocess.run(['systemd-run','--user','--collect','--unit='+unit,
+                              '--working-directory='+str(root),'--property=Nice=8',
+                              '--setenv=MUJOCO_GL=egl','--setenv=OPENBLAS_NUM_THREADS=1',python,worker])
+    if not started.returncode:
+        raise SystemExit(0)
+# The same finite worker can run inside a scheduler's foreground session when
+# there is no user D-Bus. The batch's file lock prevents duplicate dispatch.
+os.execv(python,[python,worker])

@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wonderduck-audio"
+version = "1.0.0"
+description = "Shared task audio service for WonderDuck"
+requires-python = ">=3.10"
+dependencies = ["tomli>=2; python_version < '3.11'"]
+
+[project.scripts]
+duckaudio = "duckaudio.cli:main"
+
+[tool.setuptools]
+packages = ["duckaudio"]
+
+[tool.setuptools.package-data]
+duckaudio = ["web/*.html", "web/*.css", "web/*.js"]

@@ -1,0 +1,20 @@
+{
+  "general": {
+    "reach": 0.072,
+    "close": 47,
+    "rise": 82,
+    "ramp": 45,
+    "retry_radius": 0.12,
+    "retry_yaw": 0.32,
+    "retry_reach": -0.005
+  },
+  "thin": {
+    "reach": 0.091,
+    "close": 60,
+    "rise": 98,
+    "ramp": 45,
+    "retry_radius": 0.12,
+    "retry_yaw": 0.32,
+    "retry_reach": -0.005
+  }
+}

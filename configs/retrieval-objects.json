@@ -1,0 +1,231 @@
+{
+  "objects": [
+    {
+      "id": "felt_pen",
+      "family": "pen",
+      "split": "train",
+      "length": 0.085
+    },
+    {
+      "id": "capped_crayon",
+      "family": "pen",
+      "split": "train",
+      "length": 0.065
+    },
+    {
+      "id": "056_tennis_ball",
+      "family": "ball",
+      "split": "train",
+      "length": 0.031,
+      "source": "ycb"
+    },
+    {
+      "id": "012_strawberry",
+      "family": "irregular",
+      "split": "train",
+      "length": 0.03,
+      "source": "ycb"
+    },
+    {
+      "id": "061_foam_brick",
+      "family": "brick",
+      "split": "train",
+      "length": 0.039,
+      "source": "ycb"
+    },
+    {
+      "id": "bath_bird",
+      "family": "duck",
+      "split": "train",
+      "length": 0.04
+    },
+    {
+      "id": "short_stylus",
+      "family": "pen",
+      "split": "val",
+      "length": 0.075
+    },
+    {
+      "id": "057_racquetball",
+      "family": "ball",
+      "split": "val",
+      "length": 0.029,
+      "source": "ycb"
+    },
+    {
+      "id": "round_bird",
+      "family": "duck",
+      "split": "val",
+      "length": 0.033
+    },
+    {
+      "id": "040_large_marker",
+      "family": "pen",
+      "split": "test",
+      "length": 0.11,
+      "source": "ycb"
+    },
+    {
+      "id": "058_golf_ball",
+      "family": "ball",
+      "split": "test",
+      "length": 0.027,
+      "source": "ycb"
+    },
+    {
+      "id": "sony_duck",
+      "family": "duck",
+      "split": "test",
+      "length": 0.038,
+      "source": "khronos"
+    },
+    {
+      "id": "011_banana",
+      "family": "curved",
+      "split": "challenge",
+      "length": 0.05,
+      "source": "ycb"
+    },
+    {
+      "id": "031_spoon",
+      "family": "utensil",
+      "split": "challenge",
+      "length": 0.075,
+      "source": "ycb"
+    },
+    {
+      "id": "025_mug",
+      "family": "handled",
+      "split": "challenge",
+      "length": 0.046,
+      "source": "ycb"
+    },
+    {
+      "id": "014_lemon",
+      "family": "fruit",
+      "length": 0.035,
+      "source": "ycb",
+      "split": "blind",
+      "collision": "scan"
+    },
+    {
+      "id": "038_padlock",
+      "family": "lock",
+      "length": 0.04,
+      "source": "ycb",
+      "split": "blind",
+      "collision": "scan"
+    },
+    {
+      "id": "062_dice",
+      "family": "die",
+      "length": 0.023,
+      "source": "ycb",
+      "split": "blind",
+      "collision": "scan"
+    },
+    {
+      "id": "flat_tile",
+      "family": "brick",
+      "split": "flat_train",
+      "length": 0.037,
+      "half_m": [
+        0.0185,
+        0.014,
+        0.005
+      ]
+    },
+    {
+      "id": "oval_token",
+      "family": "irregular",
+      "split": "flat_train",
+      "length": 0.032,
+      "half_m": [
+        0.016,
+        0.0135,
+        0.0055
+      ]
+    },
+    {
+      "id": "short_slat",
+      "family": "brick",
+      "split": "flat_train",
+      "length": 0.058,
+      "half_m": [
+        0.029,
+        0.009,
+        0.0045
+      ]
+    },
+    {
+      "id": "chalk_tile",
+      "family": "brick",
+      "split": "flat_val",
+      "length": 0.031,
+      "half_m": [
+        0.0155,
+        0.0125,
+        0.0065
+      ]
+    },
+    {
+      "id": "oval_button",
+      "family": "irregular",
+      "split": "flat_val",
+      "length": 0.038,
+      "half_m": [
+        0.019,
+        0.016,
+        0.006
+      ]
+    },
+    {
+      "id": "009_gelatin_box",
+      "family": "carton",
+      "split": "blind2",
+      "length": 0.042,
+      "source": "ycb",
+      "collision": "scan"
+    },
+    {
+      "id": "033_spatula",
+      "family": "spatula",
+      "split": "blind2",
+      "length": 0.072,
+      "source": "ycb",
+      "collision": "scan"
+    },
+    {
+      "id": "015_peach",
+      "family": "fruit",
+      "split": "blind2",
+      "length": 0.032,
+      "source": "ycb",
+      "collision": "scan"
+    },
+    {
+      "id": "010_potted_meat_can",
+      "family": "tin",
+      "split": "blind3",
+      "length": 0.036,
+      "source": "ycb",
+      "collision": "scan"
+    },
+    {
+      "id": "051_large_clamp",
+      "family": "clamp",
+      "split": "blind3",
+      "length": 0.048,
+      "source": "ycb",
+      "collision": "scan"
+    },
+    {
+      "id": "017_orange",
+      "family": "fruit",
+      "split": "blind3",
+      "length": 0.031,
+      "source": "ycb",
+      "collision": "scan"
+    }
+  ]
+}

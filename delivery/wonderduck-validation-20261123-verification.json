@@ -1,0 +1,28 @@
+{
+  "manifest": {
+    "exit_code": 0,
+    "output": "FILES_OK: 26 files verified; no device was contacted."
+  },
+  "portable": {
+    "exit_code": 0,
+    "output": "LOCAL_PARITY_OK：本机 1,200 个输出与原模型一致，最大误差 5.23e-08。未连接鸭子，未验证实体动作。"
+  },
+  "release_checksum": {
+    "exit_code": 0,
+    "output": "wonderduck-audio-1.0.0.tar.gz: OK"
+  },
+  "source_snapshot": {
+    "files_verified": 147,
+    "matches_current_workspace": true
+  },
+  "voice_scripts": {
+    "matches_current_workspace": true
+  },
+  "unpacked_voice_tests": {
+    "exit_code": 0,
+    "output": "小鸭: 准备执行挥手动作，请在二十秒内说确认执行，或说取消。\n小鸭: 已取消。\n小鸭: 准备执行挥手动作，请在二十秒内说确认执行，或说取消。\n小鸭: 准备执行挥手动作，请在二十秒内说确认执行，或说取消。\n小鸭: 开始执行挥手。\n小鸭: 好的，已发送停止指令。\n小鸭: 这台机器人没有配置这个动作。\n小鸭: 你好，我是机器鸭。\n小鸭: 我在听，请说吧。\n小鸭: 你好，我是机器鸭。\n............\n----------------------------------------------------------------------\nRan 12 tests in 0.002s\n\nOK"
+  },
+  "zip_bytes": 2538820,
+  "zip_sha256": "36954e55ade0f0102b5cb023127e51ca9210be725484e9dea0e855e071aa4b04",
+  "robot_contacted": false
+}

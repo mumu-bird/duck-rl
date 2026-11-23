@@ -1,0 +1,19 @@
+{
+  "artifact": "selfcatch-camera.pyz",
+  "sha256": "997894c215071240f1451bc55a1cba49e88832ae9a18f08f2737f1d32f13183e",
+  "source_sha256": {
+    "camera_probe.py": "7ba0fcf3320daf49517c803d2d039f4b50b7d4e66b976f7b3614287467bc0246",
+    "camera_board.py": "12e8b1a6c4497d3b6b67f4fa4041222633207038cbe3c1f987336fbf0cdc5919",
+    "readonly_preflight.py": "3c387b8adf398fb1644b14e32dbd165eb9606766a81845d3fba2f5af100528da",
+    "__main__.py": "2ad7f290dbdb6f77ba89643b89e9b7b9639fda48852d9d5d79043befa6952486"
+  },
+  "verified_utc": "2026-11-23T08:47:59.763135+00:00",
+  "software_tests": {
+    "test_module": "tests/test_selfcatch_camera.py",
+    "passed": 11,
+    "source": "synthetic frames and mock Unix socket; no hardware"
+  },
+  "hardware_camera": "NOT_TESTED",
+  "automatic_catch": "NOT_TESTED",
+  "original_field_kit_unchanged": "dd6057d84b27ed3552b61b8eab53b14bd5cd5aab756c6d718d6b82fb37fafdda"
+}

@@ -1,0 +1,18 @@
+{
+  "target": "192.168.149.1:8090",
+  "code": "NO_LINK",
+  "identity_verified": false,
+  "motion_permitted": false,
+  "task_result": "NOT_TESTED",
+  "basic_code": "NOT_RUN",
+  "versions": {},
+  "samples": [],
+  "reasons": [
+    "目标没有热点直连路由；请连接 WD- 热点后重试。未向目标发送请求。"
+  ],
+  "board_replay": {
+    "code": "NOT_RUN",
+    "reason": "默认不连接 SSH"
+  },
+  "utc": "2026-11-23T05:40:06.222599+00:00"
+}

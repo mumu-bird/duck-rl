@@ -1,0 +1,15 @@
+{
+  "revision": "v2-five-user-features",
+  "robot_contacted": false,
+  "files": "FILES_OK: 29 files verified; no device was contacted.",
+  "camera_help": "passed; help only, no connection",
+  "source_snapshot_files": 153,
+  "primary_workstreams": [
+    "扬声器播放功能",
+    "语音唤醒功能",
+    "叼起林里的小鸭子",
+    "抛球接球",
+    "遇到大蒜避开"
+  ],
+  "zip_sha256": "98e40a4938b1c089882fd39813643875a81aad302f89081a0720671196eb7708"
+}

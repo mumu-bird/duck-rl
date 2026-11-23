@@ -1,0 +1,43 @@
+{
+  "general": {
+    "reach": 0.074,
+    "close": 49,
+    "rise": 86,
+    "ramp": 45,
+    "retry_radius": 0.12,
+    "retry_yaw": 0.32,
+    "retry_reach": -0.005,
+    "scoop_pitch": -0.06,
+    "scoop_neck": 0.02
+  },
+  "thin": {
+    "reach": 0.091,
+    "close": 60,
+    "rise": 98,
+    "ramp": 45,
+    "retry_radius": 0.12,
+    "retry_yaw": 0.32,
+    "retry_reach": -0.005
+  },
+  "retry": {
+    "reach": 0.080,
+    "close": 54,
+    "rise": 86,
+    "ramp": 45,
+    "scoop_pitch": -0.12,
+    "scoop_neck": 0.02,
+    "retry_radius": 0.12,
+    "retry_yaw": 0.32,
+    "retry_reach": -0.005
+  },
+  "delivery": {
+    "reach": 0.106,
+    "side": 0.0,
+    "neck": -0.28,
+    "pitch": -0.12,
+    "release_tick": 28,
+    "open_ticks": 10,
+    "retain_until_open": false,
+    "lower_to_tray": false
+  }
+}

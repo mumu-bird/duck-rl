@@ -1,0 +1,12 @@
+{
+  "general": {
+    "reach": 0.072,
+    "close": 47,
+    "rise": 82
+  },
+  "thin": {
+    "reach": 0.091,
+    "close": 60,
+    "rise": 98
+  }
+}

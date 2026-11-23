@@ -1,0 +1,40 @@
+{
+  "task": "retrieval",
+  "hardware_task_result": "NOT_TESTED",
+  "retrieval_motion_ready": false,
+  "motion_permitted": false,
+  "camera": {
+    "code": "NOT_RUN"
+  },
+  "utc": "2026-11-23T09:14:12.050165+00:00",
+  "policy_replay": {
+    "code": "SHADOW_REPLAY_PASS",
+    "cases": 1242,
+    "max_abs_error": 8.640133675186235e-08,
+    "tolerance": 2e-06,
+    "hardware_tested": false,
+    "motion_permitted": false,
+    "checkpoint_sha256": "bab43a23cce5650b4318f87be077242c3a8d82d1d9eb370e049b60b20b6b8062"
+  },
+  "device": {
+    "target": "192.168.149.1:8090",
+    "code": "NO_LINK",
+    "identity_verified": false,
+    "motion_permitted": false,
+    "task_result": "NOT_TESTED",
+    "basic_code": "NOT_RUN",
+    "versions": {},
+    "samples": [],
+    "reasons": [
+      "目标没有热点直连路由；请连接 WD- 热点后重试。未向目标发送请求。"
+    ]
+  },
+  "code": "NO_LINK",
+  "unverified": [
+    "real camera calibration and perception accuracy",
+    "encoder/IMU conventions and complete control adapter",
+    "bill force/contact feedback and measured object properties",
+    "bounded motion/stop validation on this robot",
+    "physical pickup, delivery and return"
+  ]
+}

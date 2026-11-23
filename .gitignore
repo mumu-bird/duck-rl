@@ -1,0 +1,25 @@
+# Vendor-provided simulator packages and robot assets may be large or licensed.
+vendor/
+assets/vendor/
+
+# Training outputs and local machine-specific data.
+runs/
+results/
+checkpoints/
+*.onnx
+*.mjb
+__pycache__/
+*.py[cod]
+
+# Project-local simulation runtime.
+.venv/
+
+# Local tooling caches.
+.ruff_cache/
+
+# Regenerable handoff intermediates (rebuild via tools/retrieval_field/pack_kit.py
+# and the delivery packaging scripts; keep the dated handoff ZIPs and portable .pyz).
+delivery/retrieval-shadow-*/
+delivery/retrieval-check.pyz
+delivery/wonderduck-validation-20261123/
+delivery/wonderduck-validation-20261123-v2/
