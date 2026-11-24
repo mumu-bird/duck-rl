@@ -74,6 +74,8 @@ class Expert:
         self.pick = (ort.InferenceSession(str(pick_path)) if pick_path else None)
         self.pick_input = self.pick.get_inputs()[0].name if self.pick else None
         self.pick_phase = None
+        self._settle = 0        # ticks since arrival (settle before pecking)
+        self._picking = False   # latched: run the gesture to completion once started
 
     def _run(self, session, name, obs):
         out = session.run(None, {name: obs})[0]
@@ -83,8 +85,8 @@ class Expert:
         return out
 
     def act(self, obs, ctx=None):
-        """Hybrid expert: official policy drives the legs, the head aims at the
-        object in closed loop.
+        """Expert mix: official walk/stand policies, plus the ground-pick gesture
+        (the only self-consistent head-down demonstration) after a settle period.
 
         The official ground-pick policy is an open-loop phase gesture that also
         zeroes the head-command slots of the observation, so the head motion is
@@ -95,8 +97,15 @@ class Expert:
         learn exactly; the official walk/stand policies keep the legs balanced."""
         obs1 = np.asarray(obs, dtype=np.float32)[None, :]
         twist = obs1[0, 48:51]
-        if (self.pick is not None and ctx is not None
-                and np.abs(twist).max() < 0.05 and ctx["horiz"] < 0.13):
+        arrived = (self.pick is not None and ctx is not None
+                   and np.abs(twist).max() < 0.05 and ctx["horiz"] < 0.13)
+        # 到位后静置 25 tick（0.5s）再啄——走完立刻啄会因残余晃动而倒
+        self._settle = self._settle + 1 if arrived else 0
+        if arrived and self._settle > 25:
+            self._picking = True
+        # 锁存：啄击开始后跑完整个手势。低头会移动重心、身体漂移使到位
+        # 条件反复断裂，不锁存会让手势碎片化（phase 只以 1/10 推进）。
+        if self._picking:
             if self.pick_phase is None:
                 self.pick_phase = 0.0
             o = obs1.copy()
@@ -107,19 +116,17 @@ class Expert:
             self.pick_phase += 0.02 / 4.0
             if self.pick_phase >= 0.7:
                 self.pick_phase = None
+                self._picking = False
+                self._settle = 0
             # 拾取阶段用完整官方手势：只有它的「头+腿」组合自带平衡补偿，
             # 混合官方腿部 + 自定义低头轨迹会摔（实测 31-93 tick）。
             return self._run(self.pick, self.pick_input, o)
+        # 不做头部覆盖：实测覆盖会替换行走策略自带的头部补偿动作，
+        # 使其 92 tick 内摔倒（无覆盖可活 399 tick）。低头完全交给
+        # 拾取手势和 PPO 奖励。
         if np.abs(twist).max() < 0.05:
-            action = self._run(self.stand, self.stand_input, obs1)
-        else:
-            action = self._run(self.walk, self.walk_input, obs1)
-        # 头部闭环瞄准：把观测里的头部目标（obs[51:55]）转成关节偏移。
-        # 关节顺序 4..7 = neck_pitch, head_pitch, head_yaw, head_roll。
-        head_target = obs1[0, 51:55]
-        home_head = C.DEFAULT_POSITION[5:9]
-        action[4:8] = head_target - home_head
-        return action
+            return self._run(self.stand, self.stand_input, obs1)
+        return self._run(self.walk, self.walk_input, obs1)
 
 
 def run_rollout(env, policy, expert=None, greedy=False, max_ticks=None,

@@ -245,9 +245,9 @@ class DeployEnv:
         """
         if self.task == "duck_lift":
             # 实测：喙尖水平偏移恒为「躯干+7.2~8.6cm」（低头只降高度、
-            # 不前移）。原目标 obj-12cm 使喙尖永远差 4cm 够不到物体——
-            # 改为 obj-8cm，喙尖正好压在物体正上方。
-            goal = np.array([obj_pos[0] - 0.08, obj_pos[1], 0.0])
+            # 不前移）。行走实际比目标滞后 3-5cm，故目标取 obj-6cm：
+            # 躯干停在 obj-10cm 左右时，喙尖正好压在物体上。
+            goal = np.array([obj_pos[0] - 0.06, obj_pos[1], 0.0])
             # 停留点在物体后 12cm，但朝向要对准物体——喙尖沿躯干前轴啄出，
             # 躯干朝向偏 10° 就会让啄点横偏 2cm+。
             aim = obj_pos
