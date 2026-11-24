@@ -218,6 +218,9 @@ def main():
                     help="updates between training-progress videos (0 disables)")
     ap.add_argument("--freeze-body", action="store_true",
                     help="phase 1: clamp leg joints to home, learn head-down only")
+    ap.add_argument("--force-head", action="store_true",
+                    help="force head joints to aim at the object; policy learns "
+                         "leg compensation only (phase-1 decoupling)")
     ap.add_argument("--curriculum", default=None,
                     help="'far,near' metres: anneal object distance over training")
     args = ap.parse_args()
@@ -320,6 +323,11 @@ def main():
             ))
 
     # ---------------------------------------------------------- PPO
+    # 相位切换：BC/DAgger 用专家自然头部（学走位），PPO 阶段开启强制低头
+    # （只学腿部补偿）。两阶段解耦「边低边稳」。
+    if args.force_head:
+        for env in envs:
+            env.set_force_head(True)
     print(f"[ppo] 开始训练：{args.episodes} 回合，{args.workers} 并行 worker，"
           f"设备 {policy.device}", flush=True)
     started = time.time()
@@ -328,7 +336,8 @@ def main():
     history = []
     eval_env = DeployEnv(args.task, seed=args.seed * 7919 + 5,
                          object_kind=args.object, shared=shared,
-                         curriculum=curriculum, freeze_body=args.freeze_body)
+                         curriculum=curriculum, freeze_body=args.freeze_body,
+                         force_head=args.force_head)
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         # every worker runs one episode at a time; the main thread batches actions

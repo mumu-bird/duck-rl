@@ -122,7 +122,7 @@ class DeployEnv:
     }
 
     def __init__(self, task="duck_lift", seed=None, object_kind=None, record=False,
-                 shared=None, curriculum=None, freeze_body=False):
+                 shared=None, curriculum=None, freeze_body=False, force_head=False):
         assert task in self.TASKS
         self.task = task
         self.curriculum = curriculum
@@ -130,6 +130,11 @@ class DeployEnv:
         # freeze_body: 第一阶段解耦——身体目标钳制在 home 附近，只放开头部
         # 关节，让策略先学「低头对准」而不被平衡问题干扰。
         self.freeze_body = freeze_body
+        # force_head: 头部关节强制为「瞄准物体」，策略只学腿部补偿。
+        # 「边低边稳」是最难的耦合（头部链占体重 38%，低头必前移重心），
+        # 直接学需同时发现「低头+补偿」，联合概率极低；强制低头把它拆成
+        # 可学的单技能：给定低头姿态，学腿部怎么补。
+        self.force_head = force_head
         cfg = self.TASKS[task]
         self.object_kind = object_kind or cfg["object"]
         self.seconds = cfg["seconds"]
@@ -198,6 +203,9 @@ class DeployEnv:
             tip_dist=float(np.linalg.norm(obj_pos - tip)),
             above=float(tip[2] - obj_pos[2]),
         )
+
+    def set_force_head(self, value):
+        self.force_head = bool(value)
 
     def set_curriculum_progress(self, progress):
         self._curriculum_progress = float(np.clip(progress, 0.0, 1.0))
@@ -412,6 +420,10 @@ class DeployEnv:
         m, d = self.model, self.data
         mujoco = __import__("mujoco")
         action = np.asarray(action, dtype=np.float64).reshape(C.ACTION_LEN)
+        if self.force_head:
+            obj_pos = self._object_pose()[0]
+            head_cmd = self._head_command(obj_pos)
+            action[4:8] = head_cmd - C.DEFAULT_POSITION[5:9]
         targets = C.clip_targets(C.targets_from_action(action))
         if self.L["mouth_qpos"] < 0:
             targets = np.concatenate(
